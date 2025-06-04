@@ -9,7 +9,7 @@ PKG_DIR=./pkg/...
 MAIN_PKG=./cmd/terminal-wakatime
 
 # Build variables
-VERSION ?= dev
+VERSION ?= $(shell git describe --always --dirty 2>/dev/null || echo "dev")
 LDFLAGS = -X github.com/hackclub/terminal-wakatime/pkg/config.PluginVersion=$(VERSION)
 
 # Default target
@@ -177,4 +177,9 @@ help:
 	@echo "  docs          - Start godoc server"
 	@echo "  bench         - Run benchmarks"
 	@echo "  profile       - Run tests with profiling"
+	@echo "  version       - Show version information"
 	@echo "  help          - Show this help"
+
+version:
+	@echo "Current version: $(VERSION)"
+	@if [ -f "$(BINARY_NAME)" ]; then ./$(BINARY_NAME) version; fi

@@ -17,10 +17,12 @@ const (
 	DefaultConfigFile         = ".wakatime.cfg"
 	DefaultWakaTimeDir        = ".wakatime"
 	PluginName                = "terminal-wakatime"
-	PluginVersion             = "1.0.0"
 	// WakaTime official plugin interval - hardcoded as per spec
 	WakaTimeInterval = 2 * time.Minute
 )
+
+// PluginVersion will be set at build time via ldflags
+var PluginVersion = "dev"
 
 type Config struct {
 	APIKey                     string

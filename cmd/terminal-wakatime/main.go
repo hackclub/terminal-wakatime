@@ -60,6 +60,7 @@ to remote systems.`,
 	rootCmd.AddCommand(testCmd())
 	rootCmd.AddCommand(depsCmd())
 	rootCmd.AddCommand(debugCmd())
+	rootCmd.AddCommand(versionCmd())
 
 	return rootCmd.Execute()
 }
@@ -485,6 +486,17 @@ func truncateString(s string, maxLen int) string {
 		return "..."[:maxLen]
 	}
 	return s[:maxLen-3] + "..."
+}
+
+func versionCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "version",
+		Short: "Show version information",
+		Run: func(cmd *cobra.Command, args []string) {
+			fmt.Printf("terminal-wakatime version %s\n", config.PluginVersion)
+		},
+	}
+	return cmd
 }
 
 func getExecutablePath() string {

@@ -48,6 +48,17 @@ jobs:
     - name: Run tests
       run: go test -short ./...
 
+    - name: Set version
+      id: version
+      run: |
+        if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+          VERSION=${GITHUB_REF#refs/tags/}
+        else
+          VERSION=$(git describe --always --dirty)
+        fi
+        echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+        echo "Building version: $VERSION"
+
     - name: Build binary
       env:
         GOOS: ${{ matrix.goos }}
@@ -55,7 +66,7 @@ jobs:
         CGO_ENABLED: 0
       run: |
         mkdir -p dist
-        go build -ldflags="-s -w" -o dist/terminal-wakatime-${{ matrix.suffix }} ./cmd/terminal-wakatime
+        go build -ldflags="-s -w -X github.com/hackclub/terminal-wakatime/pkg/config.PluginVersion=${{ steps.version.outputs.VERSION }}" -o dist/terminal-wakatime-${{ matrix.suffix }} ./cmd/terminal-wakatime
 
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
