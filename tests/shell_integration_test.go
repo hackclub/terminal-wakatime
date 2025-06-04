@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -39,10 +40,9 @@ func TestShellIntegration(t *testing.T) {
 
 	for _, shell := range shells {
 		t.Run(shell.name, func(t *testing.T) {
-			// Check if shell is available
+			// Check if shell is available - fail if not found
 			if _, err := exec.LookPath(shell.executable); err != nil {
-				t.Skipf("Skipping %s tests: %s not found in PATH", shell.name, shell.executable)
-				return
+				t.Fatalf("Required shell %s not found in PATH - please install %s to run shell integration tests", shell.executable, shell.executable)
 			}
 
 			suite.testShellLifecycle(t, shell.name, shell.executable)
@@ -113,7 +113,11 @@ func (s *ShellTestSuite) setupTestConfig(t *testing.T) {
 	os.Setenv("WAKATIME_HOME", s.configDir)
 	
 	// Create the wakatime-cli directory structure that the wakatime package expects
-	wakatimeCLIDir := filepath.Join(s.configDir, "wakatime-cli-darwin-arm64")
+	binName := fmt.Sprintf("wakatime-cli-%s-%s", runtime.GOOS, runtime.GOARCH)
+	if runtime.GOOS == "windows" {
+		binName += ".exe"
+	}
+	wakatimeCLIDir := filepath.Join(s.configDir, binName)
 	if err := os.MkdirAll(filepath.Dir(wakatimeCLIDir), 0755); err != nil {
 		t.Fatalf("Failed to create wakatime-cli directory: %v", err)
 	}
@@ -292,7 +296,6 @@ func (s *ShellTestSuite) createFishTestScript(hooks string) string {
 set -x HOME "%s"
 set -x WAKATIME_HOME "%s"
 set -x PATH "%s" $PATH
-set -x FISH_VERSION "3.0"
 
 # Source the hooks (convert from POSIX to Fish syntax)
 # Note: This is a simplified approach - in real usage, fish hooks would be different
