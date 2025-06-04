@@ -1,6 +1,6 @@
 module github.com/hackclub/terminal-wakatime
 
-go 1.22.5
+go 1.22
 
 require (
 	github.com/spf13/cobra v1.8.0
