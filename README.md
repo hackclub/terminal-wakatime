@@ -105,11 +105,11 @@ go install github.com/hackclub/terminal-wakatime/cmd/terminal-wakatime@latest
 
 **WakaTime API Key Setup:**
 
+Optionally manually set your API key. If you're using [Hackatime](https://hackatime.hackclub.com), this is already done automatically by the [Hackatime setup script](https://hackatime.hackclub.com/my/wakatime_setup) and you can ignore this.
+
 ```bash
 terminal-wakatime config --key YOUR_WAKATIME_KEY
 ```
-
-Get your key from: [wakatime.com/api-key](https://wakatime.com/api-key)
 
 **Basic Options:**
 
@@ -203,7 +203,7 @@ terminal-wakatime deps --reinstall
 
 ## Contributing
 
-Built for Hack Club's Hackatime community, but works with standard WakaTime. Pull requests welcome!
+Built for Hack Club's [Hackatime](https://hackatime.hackclub.com) community, but works with standard WakaTime. Pull requests welcome!
 
 ```bash
 git clone https://github.com/hackclub/terminal-wakatime
@@ -214,5 +214,5 @@ go test ./...
 ## Support
 
 - 🐛 [GitHub Issues](https://github.com/hackclub/terminal-wakatime/issues)
-- 💬 [Hack Club Slack](https://hackclub.com/slack) #hackatime channel
+- 💬 [Hack Club Slack](https://hackclub.com/slack) `#hackatime-dev` channel
 - 📖 [WakaTime Docs](https://wakatime.com/help)
