@@ -5,7 +5,7 @@ Track your time in bash, zsh, and fish with WakaTime! Better alternative to the 
 ## Quick Setup (30 seconds)
 
 ```bash
-curl -fsSL http://hack.club/tw.sh | sh
+curl -fsSL http://hack.club/terminal-wakatime.sh | sh
 ```
 
 That's it. Your terminal work in **bash, zsh, and fish** now gets properly tracked in WakaTime with correct project detection.
