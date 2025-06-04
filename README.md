@@ -213,70 +213,88 @@ Terminal WakaTime detects different activity types and sends them to wakatime-cl
 
 ## Installation
 
-### Prerequisites
+### 🚀 Quick Install (Recommended for Beginners)
 
-- Go 1.21 or later
-- One of: Bash, Zsh, Fish, or compatible shell
-- WakaTime account and API key
-- Internet connection for initial setup (wakatime-cli auto-download)
-
-### Install Methods
-
-#### 1. Go Install (Recommended)
+**One command installs everything:**
 
 ```bash
+curl -fsSL https://raw.githubusercontent.com/hackclub/terminal-wakatime/main/install.sh | sh
+```
+
+This script will:
+- ✅ Auto-detect your OS and architecture  
+- ✅ Download the latest version
+- ✅ Install the binary to the right location
+- ✅ Set up shell integration automatically
+- ✅ Guide you through API key setup
+
+**Get your API key:** Visit [wakatime.com/api-key](https://wakatime.com/api-key) and copy your key.
+
+That's it! Restart your terminal and start coding. 🎉
+
+---
+
+### Alternative Install Methods
+
+<details>
+<summary>📦 Package Managers</summary>
+
+```bash
+# Homebrew (macOS/Linux)
+brew install hackclub/tap/terminal-wakatime
+
+# Go (if you have Go installed)
 go install github.com/hackclub/terminal-wakatime/cmd/terminal-wakatime@latest
 ```
+</details>
 
-#### 2. Download Binary
+<details>
+<summary>💻 Manual Installation</summary>
+
+#### Download Binary
+
+1. Go to [Releases](https://github.com/hackclub/terminal-wakatime/releases/latest)
+2. Download the file for your platform:
+   - **Linux**: `terminal-wakatime-linux-amd64`
+   - **macOS Intel**: `terminal-wakatime-darwin-amd64` 
+   - **macOS Apple Silicon**: `terminal-wakatime-darwin-arm64`
+   - **Windows**: `terminal-wakatime-windows-amd64.exe`
+
+3. Make it executable and move to your PATH:
+   ```bash
+   chmod +x terminal-wakatime-*
+   sudo mv terminal-wakatime-* /usr/local/bin/terminal-wakatime
+   ```
+
+#### Shell Setup
+
+Add this line to your shell config file:
 
 ```bash
-# Download latest release for your platform
-curl -L https://github.com/hackclub/terminal-wakatime/releases/latest/download/terminal-wakatime-linux-amd64 -o terminal-wakatime
-chmod +x terminal-wakatime
-sudo mv terminal-wakatime /usr/local/bin/
+# For Bash (~/.bashrc) or Zsh (~/.zshrc)
+eval "$(terminal-wakatime init)"
+
+# For Fish (~/.config/fish/config.fish)  
+terminal-wakatime init | source
 ```
 
-#### 3. Build From Source
+#### API Key Setup
 
 ```bash
-git clone https://github.com/hackclub/terminal-wakatime.git
-cd terminal-wakatime
-go build -o terminal-wakatime ./cmd/terminal-wakatime
+terminal-wakatime config --key YOUR_API_KEY
 ```
 
-### Setup
+Get your API key from: [wakatime.com/api-key](https://wakatime.com/api-key)
 
-1. **Initialize in your shell**:
-   ```bash
-   # Add to ~/.bashrc, ~/.zshrc, or ~/.config/fish/config.fish
-   eval "$(terminal-wakatime init)"
-   ```
+</details>
 
-2. **First-time setup** (automatic on next shell session):
-   ```bash
-   # This happens automatically when you open a new terminal
-   $ # Terminal WakaTime initializing...
-   ✓ Downloading wakatime-cli v1.73.0 for your platform
-   ✓ Installing to ~/.wakatime/
-   ✓ Verifying installation
-   
-   # You'll be prompted for API key if not configured
-   Enter your WakaTime API key: waka_********
-   ✓ API key saved to ~/.wakatime.cfg
-   ✓ Terminal WakaTime ready!
-   ```
+### 🔍 Verify Installation
 
-3. **Manual configuration** (optional):
-   ```bash
-   # Set API key manually
-   terminal-wakatime config --key YOUR_API_KEY
-   
-   # Test the setup
-   terminal-wakatime test
-   ```
+```bash
+terminal-wakatime test
+```
 
-4. **Restart your shell** or source your config file
+This will verify your installation and API connection.
 
 ## Automatic Dependencies
 
