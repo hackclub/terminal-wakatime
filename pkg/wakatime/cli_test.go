@@ -170,7 +170,7 @@ exit 0
 
 	// Test sending heartbeat (will only work on Unix systems)
 	if runtime.GOOS != "windows" {
-		err := cli.SendHeartbeat("/path/to/file.go", "file", "coding", "go", "test-project", "main", false)
+		err := cli.SendHeartbeat("/path/to/file.go", "file", "coding", "go", "test-project", "main", false, nil, nil, nil, nil, nil)
 		if err != nil {
 			t.Logf("SendHeartbeat failed (expected in test environment): %v", err)
 		}

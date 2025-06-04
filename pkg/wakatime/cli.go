@@ -300,7 +300,7 @@ func (c *CLI) saveLastUpdateCheck() {
 	os.WriteFile(timestampFile, []byte(timestamp), 0644)
 }
 
-func (c *CLI) SendHeartbeat(entity, entityType, category, language, project, branch string, isWrite bool) error {
+func (c *CLI) SendHeartbeat(entity, entityType, category, language, project, branch string, isWrite bool, lines, lineNo, cursorPos, lineAdditions, lineDeletions *int) error {
 	// Format plugin string according to WakaTime spec: "shell/version terminal-wakatime/version"
 	pluginString := shell.FormatPluginString(config.PluginName, config.PluginVersion)
 
@@ -331,6 +331,26 @@ func (c *CLI) SendHeartbeat(entity, entityType, category, language, project, bra
 
 	if isWrite {
 		args = append(args, "--write")
+	}
+
+	if lines != nil {
+		args = append(args, "--lines-in-file", fmt.Sprintf("%d", *lines))
+	}
+
+	if lineNo != nil {
+		args = append(args, "--lineno", fmt.Sprintf("%d", *lineNo))
+	}
+
+	if cursorPos != nil {
+		args = append(args, "--cursorpos", fmt.Sprintf("%d", *cursorPos))
+	}
+
+	if lineAdditions != nil {
+		args = append(args, "--line-additions", fmt.Sprintf("%d", *lineAdditions))
+	}
+
+	if lineDeletions != nil {
+		args = append(args, "--line-deletions", fmt.Sprintf("%d", *lineDeletions))
 	}
 
 	if c.config.Debug {

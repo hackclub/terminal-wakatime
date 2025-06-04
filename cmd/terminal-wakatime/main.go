@@ -234,7 +234,7 @@ func runHeartbeatCommand(cmd *cobra.Command, args []string) error {
 	branch, _ := cmd.Flags().GetString("branch")
 	isWrite, _ := cmd.Flags().GetBool("write")
 
-	return wakatimeCLI.SendHeartbeat(entity, entityType, category, language, project, branch, isWrite)
+	return wakatimeCLI.SendHeartbeat(entity, entityType, category, language, project, branch, isWrite, nil, nil, nil, nil, nil)
 }
 
 func trackCmd() *cobra.Command {

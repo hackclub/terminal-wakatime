@@ -1,10 +1,13 @@
 package tracker
 
 import (
+	"bufio"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -21,14 +24,19 @@ const (
 )
 
 type Activity struct {
-	Entity     string
-	EntityType ActivityType
-	Category   string
-	Language   string
-	Project    string
-	Branch     string
-	IsWrite    bool
-	Timestamp  time.Time
+	Entity        string
+	EntityType    ActivityType
+	Category      string
+	Language      string
+	Project       string
+	Branch        string
+	IsWrite       bool
+	Timestamp     time.Time
+	Lines         *int
+	LineNo        *int
+	CursorPos     *int
+	LineAdditions *int
+	LineDeletions *int
 }
 
 type Tracker struct {
@@ -116,12 +124,15 @@ func (t *Tracker) TrackFile(filePath string, isWrite bool) error {
 		Entity:     filePath,
 		EntityType: ActivityFile,
 		Category:   "coding",
+		Language:   detectLanguage(filePath),
+		Project:    t.detectProject(filePath),
+		Branch:     getGitBranch(filepath.Dir(filePath)),
 		IsWrite:    isWrite,
 		Timestamp:  time.Now(),
+		Lines:      getFileLines(filePath),
+		LineNo:     getDefaultLineNumber(),
+		CursorPos:  getDefaultCursorPos(),
 	}
-
-	// Detect project from file path
-	activity.Project = t.detectProject(filePath)
 
 	return t.sendActivity(activity)
 }
@@ -143,6 +154,18 @@ func (t *Tracker) parseCommand(command string, workingDir string) []*Activity {
 		return activities
 	}
 
+	// Check for git commands - handle with rich metadata
+	if cmdName == "git" {
+		activities = append(activities, t.handleGitCommand(fields, workingDir)...)
+		return activities
+	}
+
+	// Check for build/test commands
+	if t.isBuildTestCommand(cmdName) {
+		activities = append(activities, t.handleBuildTestCommand(fields, workingDir)...)
+		return activities
+	}
+
 	// Check for coding apps
 	if category, isCodingApp := codingApps[cmdName]; isCodingApp {
 		activity := &Activity{
@@ -150,6 +173,7 @@ func (t *Tracker) parseCommand(command string, workingDir string) []*Activity {
 			EntityType: ActivityApp,
 			Category:   category,
 			Project:    t.detectProject(workingDir),
+			Branch:     getGitBranch(workingDir),
 			Timestamp:  time.Now(),
 		}
 		activities = append(activities, activity)
@@ -181,6 +205,7 @@ func (t *Tracker) parseCommand(command string, workingDir string) []*Activity {
 			EntityType: ActivityFile,
 			Category:   "browsing",
 			Project:    t.detectProject(targetDir),
+			Branch:     getGitBranch(targetDir),
 			Timestamp:  time.Now(),
 		}
 		activities = append(activities, activity)
@@ -224,8 +249,14 @@ func (t *Tracker) handleEditorCommand(fields []string, workingDir string) []*Act
 				Entity:     filePath,
 				EntityType: ActivityFile,
 				Category:   "coding",
+				Language:   detectLanguage(filePath),
 				Project:    t.detectProject(filePath),
+				Branch:     getGitBranch(filepath.Dir(filePath)),
+				IsWrite:    true, // File editing is typically writing
 				Timestamp:  time.Now(),
+				Lines:      getFileLines(filePath),
+				LineNo:     getDefaultLineNumber(),
+				CursorPos:  getDefaultCursorPos(),
 			}
 			activities = append(activities, activity)
 		}
@@ -238,6 +269,7 @@ func (t *Tracker) handleEditorCommand(fields []string, workingDir string) []*Act
 			EntityType: ActivityApp,
 			Category:   "coding",
 			Project:    t.detectProject(workingDir),
+			Branch:     getGitBranch(workingDir),
 			Timestamp:  time.Now(),
 		}
 		activities = append(activities, activity)
@@ -320,6 +352,11 @@ func (t *Tracker) sendActivity(activity *Activity) error {
 		activity.Project,
 		activity.Branch,
 		activity.IsWrite,
+		activity.Lines,
+		activity.LineNo,
+		activity.CursorPos,
+		activity.LineAdditions,
+		activity.LineDeletions,
 	)
 
 	if err == nil {
@@ -384,4 +421,337 @@ func (t *Tracker) getEditorSuggestion(editor string) string {
 func isDir(path string) bool {
 	info, err := os.Stat(path)
 	return err == nil && info.IsDir()
+}
+
+// detectLanguage detects programming language from file extension
+func detectLanguage(filePath string) string {
+	ext := strings.ToLower(filepath.Ext(filePath))
+	switch ext {
+	case ".go":
+		return "Go"
+	case ".js", ".jsx":
+		return "JavaScript"
+	case ".ts", ".tsx":
+		return "TypeScript"
+	case ".py":
+		return "Python"
+	case ".rs":
+		return "Rust"
+	case ".java":
+		return "Java"
+	case ".c":
+		return "C"
+	case ".cpp", ".cc", ".cxx":
+		return "C++"
+	case ".h", ".hpp":
+		return "C Header"
+	case ".php":
+		return "PHP"
+	case ".rb":
+		return "Ruby"
+	case ".sh", ".bash", ".zsh":
+		return "Shell"
+	case ".md", ".markdown":
+		return "Markdown"
+	case ".html", ".htm":
+		return "HTML"
+	case ".css":
+		return "CSS"
+	case ".scss", ".sass":
+		return "SCSS"
+	case ".json":
+		return "JSON"
+	case ".yaml", ".yml":
+		return "YAML"
+	case ".xml":
+		return "XML"
+	case ".sql":
+		return "SQL"
+	case ".dockerfile":
+		return "Docker"
+	case ".toml":
+		return "TOML"
+	case ".ini":
+		return "INI"
+	default:
+		// Check for special cases
+		basename := strings.ToLower(filepath.Base(filePath))
+		switch basename {
+		case "dockerfile":
+			return "Docker"
+		case "makefile":
+			return "Makefile"
+		case "go.mod", "go.sum":
+			return "Go Module"
+		case "package.json", "package-lock.json":
+			return "JSON"
+		case "cargo.toml", "cargo.lock":
+			return "TOML"
+		}
+		return ""
+	}
+}
+
+// getFileLines returns the number of lines in a file
+func getFileLines(filePath string) *int {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return nil
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	lines := 0
+	for scanner.Scan() {
+		lines++
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil
+	}
+
+	return &lines
+}
+
+// getGitBranch returns the current git branch for the given directory
+func getGitBranch(dir string) string {
+	cmd := exec.Command("git", "rev-parse", "--abbrev-ref", "HEAD")
+	cmd.Dir = dir
+	output, err := cmd.Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(output))
+}
+
+// getGitChangedFiles returns files changed in the last commit with their line changes
+func getGitChangedFiles(dir string) ([]GitFileChange, error) {
+	cmd := exec.Command("git", "diff", "--stat", "HEAD~1", "HEAD", "--numstat")
+	cmd.Dir = dir
+	output, err := cmd.Output()
+	if err != nil {
+		return nil, err
+	}
+
+	var changes []GitFileChange
+	lines := strings.Split(string(output), "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+
+		parts := strings.Fields(line)
+		if len(parts) >= 3 {
+			added, _ := strconv.Atoi(parts[0])
+			deleted, _ := strconv.Atoi(parts[1])
+			filePath := parts[2]
+
+			changes = append(changes, GitFileChange{
+				FilePath:      filePath,
+				LineAdditions: added,
+				LineDeletions: deleted,
+			})
+		}
+	}
+
+	return changes, nil
+}
+
+type GitFileChange struct {
+	FilePath      string
+	LineAdditions int
+	LineDeletions int
+}
+
+// handleGitCommand processes git commands with rich metadata
+func (t *Tracker) handleGitCommand(fields []string, workingDir string) []*Activity {
+	var activities []*Activity
+
+	if len(fields) < 2 {
+		return activities
+	}
+
+	gitSubcommand := fields[1]
+
+	switch gitSubcommand {
+	case "commit", "push", "merge", "rebase":
+		// For commit operations, track the files being committed with line changes
+		changes, err := getGitChangedFiles(workingDir)
+		if err != nil || len(changes) == 0 {
+			// Fallback to simple git activity
+			activity := &Activity{
+				Entity:     "git " + gitSubcommand,
+				EntityType: ActivityApp,
+				Category:   "code reviewing",
+				Project:    t.detectProject(workingDir),
+				Branch:     getGitBranch(workingDir),
+				IsWrite:    true,
+				Timestamp:  time.Now(),
+			}
+			activities = append(activities, activity)
+		} else {
+			// Create activities for each changed file
+			for _, change := range changes {
+				filePath := filepath.Join(workingDir, change.FilePath)
+				activity := &Activity{
+					Entity:        filePath,
+					EntityType:    ActivityFile,
+					Category:      "code reviewing",
+					Language:      detectLanguage(filePath),
+					Project:       t.detectProject(workingDir),
+					Branch:        getGitBranch(workingDir),
+					IsWrite:       true,
+					Timestamp:     time.Now(),
+					Lines:         getFileLines(filePath),
+					LineAdditions: &change.LineAdditions,
+					LineDeletions: &change.LineDeletions,
+				}
+				activities = append(activities, activity)
+			}
+		}
+
+	case "status", "log", "diff", "show":
+		// Read operations
+		activity := &Activity{
+			Entity:     "git " + gitSubcommand,
+			EntityType: ActivityApp,
+			Category:   "code reviewing",
+			Project:    t.detectProject(workingDir),
+			Branch:     getGitBranch(workingDir),
+			IsWrite:    false,
+			Timestamp:  time.Now(),
+		}
+		activities = append(activities, activity)
+
+	default:
+		// Other git operations
+		activity := &Activity{
+			Entity:     "git " + gitSubcommand,
+			EntityType: ActivityApp,
+			Category:   "code reviewing",
+			Project:    t.detectProject(workingDir),
+			Branch:     getGitBranch(workingDir),
+			Timestamp:  time.Now(),
+		}
+		activities = append(activities, activity)
+	}
+
+	return activities
+}
+
+// isBuildTestCommand checks if command is a build/test operation
+func (t *Tracker) isBuildTestCommand(cmdName string) bool {
+	buildTestCommands := []string{
+		"npm", "yarn", "pnpm", "bun",
+		"cargo", "go", "mvn", "gradle",
+		"make", "cmake", "ninja",
+		"python", "pytest", "jest", "mocha",
+		"tsc", "webpack", "vite", "rollup",
+		"docker", "docker-compose",
+		"terraform", "ansible",
+	}
+
+	for _, cmd := range buildTestCommands {
+		if cmd == cmdName {
+			return true
+		}
+	}
+	return false
+}
+
+// handleBuildTestCommand processes build/test commands with context
+func (t *Tracker) handleBuildTestCommand(fields []string, workingDir string) []*Activity {
+	var activities []*Activity
+
+	if len(fields) == 0 {
+		return activities
+	}
+
+	cmdName := fields[0]
+	subcommand := ""
+	if len(fields) > 1 {
+		subcommand = fields[1]
+	}
+
+	// Determine category based on subcommand
+	category := "coding"
+	if isTestCommand(subcommand) {
+		category = "debugging"
+	} else if isBuildCommand(subcommand) {
+		category = "building"
+	}
+
+	// Try to detect language from project context
+	language := t.detectProjectLanguage(workingDir)
+
+	activity := &Activity{
+		Entity:     cmdName + " " + subcommand,
+		EntityType: ActivityApp,
+		Category:   category,
+		Language:   language,
+		Project:    t.detectProject(workingDir),
+		Branch:     getGitBranch(workingDir),
+		Timestamp:  time.Now(),
+	}
+
+	activities = append(activities, activity)
+	return activities
+}
+
+// isTestCommand checks if subcommand is a test operation
+func isTestCommand(subcommand string) bool {
+	testCommands := []string{"test", "check", "verify", "spec", "jest", "mocha", "pytest"}
+	for _, cmd := range testCommands {
+		if cmd == subcommand {
+			return true
+		}
+	}
+	return false
+}
+
+// isBuildCommand checks if subcommand is a build operation
+func isBuildCommand(subcommand string) bool {
+	buildCommands := []string{"build", "compile", "install", "deploy", "publish", "dist", "bundle"}
+	for _, cmd := range buildCommands {
+		if cmd == subcommand {
+			return true
+		}
+	}
+	return false
+}
+
+// detectProjectLanguage detects primary language from project files
+func (t *Tracker) detectProjectLanguage(workingDir string) string {
+	// Check for language-specific project files
+	languageFiles := map[string]string{
+		"go.mod":        "Go",
+		"package.json":  "JavaScript",
+		"Cargo.toml":    "Rust",
+		"pom.xml":       "Java",
+		"requirements.txt": "Python",
+		"setup.py":      "Python",
+		"Gemfile":       "Ruby",
+		"composer.json": "PHP",
+	}
+
+	for file, language := range languageFiles {
+		if _, err := os.Stat(filepath.Join(workingDir, file)); err == nil {
+			return language
+		}
+	}
+
+	return ""
+}
+
+// getDefaultLineNumber returns a default line number for file operations
+func getDefaultLineNumber() *int {
+	line := 1
+	return &line
+}
+
+// getDefaultCursorPos returns a default cursor position
+func getDefaultCursorPos() *int {
+	pos := 1
+	return &pos
 }
