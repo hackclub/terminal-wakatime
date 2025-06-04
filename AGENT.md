@@ -29,3 +29,10 @@
 - Error handling: explicit checks, wrap with `fmt.Errorf("operation failed: %w", err)`
 - Context: pass `context.Context` as first parameter to functions that need it
 - Interfaces: small, focused, end with 'er' suffix when possible
+
+## Git Best Practices
+- **Multiple agents warning**: Multiple agents may be working on this repository simultaneously
+- **Always use specific file paths** with `git add` instead of `git add .` or `git add -A`
+- Example: `git add pkg/tracker/tracker.go .github/workflows/test.yml` instead of `git add .`
+- This prevents accidentally committing changes made by other agents or processes
+- Check `git status` before committing to ensure only intended files are staged
