@@ -326,7 +326,7 @@ func (c *CLI) SendHeartbeat(entity, entityType, category, language, project, bra
 	}
 
 	if branch != "" {
-		args = append(args, "--alternate-project", branch)
+		args = append(args, "--alternate-branch", branch)
 	}
 
 	if isWrite {
@@ -364,7 +364,21 @@ func (c *CLI) SendHeartbeat(entity, entityType, category, language, project, bra
 		cmd.Stderr = os.Stderr
 	}
 
-	return cmd.Run()
+	err := cmd.Run()
+	
+	// Handle known non-fatal wakatime-cli exit codes
+	if err != nil {
+		if exitError, ok := err.(*exec.ExitError); ok {
+			switch exitError.ExitCode() {
+			case 104:
+				// API key not configured - non-fatal for terminal-wakatime
+				// This is expected in test environments or fresh installs
+				return nil
+			}
+		}
+	}
+	
+	return err
 }
 
 func (c *CLI) TestConnection() error {

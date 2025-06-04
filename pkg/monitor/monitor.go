@@ -48,7 +48,10 @@ func (m *Monitor) ProcessCommand(command string, duration time.Duration, working
 	m.checkAndShowUpdateNotification()
 
 	// Check for updates in background (non-blocking)
-	go m.updater.CheckAndUpdate()
+	// Skip updates if disabled via environment variable (useful for tests)
+	if os.Getenv("TERMINAL_WAKATIME_DISABLE_UPDATES") == "" {
+		go m.updater.CheckAndUpdate()
+	}
 
 	// Log the command for debugging
 	m.logCommand(command, duration, workingDir)

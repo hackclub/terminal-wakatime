@@ -8,6 +8,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestCLIInstallationIntegration(t *testing.T) {
@@ -41,6 +42,14 @@ func TestCLIInstallationIntegration(t *testing.T) {
 
 	// Test 1: Set up configuration first
 	t.Log("Setting up configuration...")
+	
+	// Disable auto-updates by setting a future timestamp
+	wakatimeDir := filepath.Join(testDir, ".wakatime")
+	os.MkdirAll(wakatimeDir, 0755)
+	futureTime := time.Now().Add(48 * time.Hour).Format(time.RFC3339)
+	lastCheckFile := filepath.Join(wakatimeDir, "terminal-wakatime_last_update_check.txt")
+	os.WriteFile(lastCheckFile, []byte(futureTime), 0644)
+	
 	configCmd := exec.Command(binaryPath, "config", "--key", "test-api-key-123456789", "--project", "test-project")
 	configCmd.Env = append(os.Environ(), "HOME="+testDir)
 
@@ -52,13 +61,13 @@ func TestCLIInstallationIntegration(t *testing.T) {
 	// Test 2: Track command should trigger CLI installation
 	t.Log("Testing CLI installation via track command...")
 	trackCmd := exec.Command(binaryPath, "track", "--command", "vim main.go", "--pwd", testDir, "--duration", "5", "-v")
-	trackCmd.Env = append(os.Environ(), "HOME="+testDir)
+	trackCmd.Env = append(os.Environ(), "HOME="+testDir, "TERMINAL_WAKATIME_DISABLE_UPDATES=1")
 
 	trackOutput, err := trackCmd.CombinedOutput()
 	t.Logf("Track command output: %s", string(trackOutput))
 
 	// Check if .wakatime directory was created
-	wakatimeDir := filepath.Join(testDir, ".wakatime")
+	// wakatimeDir already declared above
 	if _, err := os.Stat(wakatimeDir); os.IsNotExist(err) {
 		t.Fatalf("WakaTime directory was not created: %s", wakatimeDir)
 	}
@@ -111,7 +120,7 @@ func TestCLIInstallationIntegration(t *testing.T) {
 
 	// Run another command that would trigger installation
 	trackCmd2 := exec.Command(binaryPath, "track", "--command", "another test", "--pwd", testDir, "--duration", "3")
-	trackCmd2.Env = append(os.Environ(), "HOME="+testDir)
+	trackCmd2.Env = append(os.Environ(), "HOME="+testDir, "TERMINAL_WAKATIME_DISABLE_UPDATES=1")
 
 	_, err = trackCmd2.CombinedOutput()
 	if err != nil {

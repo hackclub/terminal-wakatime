@@ -698,6 +698,7 @@ func TestCommandParsing(t *testing.T) {
 				"HOME="+suite.testDir,
 				"WAKATIME_HOME="+suite.configDir,
 				"PATH="+filepath.Dir(suite.mockCLIPath)+":"+os.Getenv("PATH"),
+				"TERMINAL_WAKATIME_DISABLE_UPDATES=1",
 			)
 
 			cmd := exec.Command(suite.binaryPath, tt.args...)
