@@ -12,11 +12,13 @@ import (
 
 	"github.com/hackclub/terminal-wakatime/pkg/config"
 	"github.com/hackclub/terminal-wakatime/pkg/tracker"
+	"github.com/hackclub/terminal-wakatime/pkg/updater"
 )
 
 type Monitor struct {
 	config  *config.Config
 	tracker *tracker.Tracker
+	updater *updater.Updater
 	logFile string
 }
 
@@ -29,15 +31,26 @@ type CommandEvent struct {
 
 func NewMonitor(cfg *config.Config) *Monitor {
 	logFile := filepath.Join(cfg.WakaTimeDir(), "commands.log")
+	
+	// Get current binary path for updater
+	binaryPath, _ := os.Executable()
+	upd := updater.NewUpdater(cfg.PluginVersion(), cfg.WakaTimeDir(), binaryPath)
 
 	return &Monitor{
 		config:  cfg,
 		tracker: tracker.NewTracker(cfg),
+		updater: upd,
 		logFile: logFile,
 	}
 }
 
 func (m *Monitor) ProcessCommand(command string, duration time.Duration, workingDir string) error {
+	// Check for pending update notifications (show once then clear)
+	m.checkAndShowUpdateNotification()
+	
+	// Check for updates in background (non-blocking)
+	go m.updater.CheckAndUpdate()
+
 	// Log the command for debugging
 	m.logCommand(command, duration, workingDir)
 
@@ -48,6 +61,21 @@ func (m *Monitor) ProcessCommand(command string, duration time.Duration, working
 
 	// Track the command
 	return m.tracker.TrackCommand(command, workingDir)
+}
+
+// checkAndShowUpdateNotification checks for pending update notifications and shows them
+func (m *Monitor) checkAndShowUpdateNotification() {
+	updateInfo, err := m.updater.GetPendingUpdateInfo()
+	if err != nil || updateInfo == nil {
+		return // No pending notification or error reading it
+	}
+	
+	// Show the notification
+	fmt.Fprintf(os.Stderr, "\n🚀 FYI! terminal-wakatime here. I self-updated from %s to %s.\n\n", 
+		updateInfo.FromVersion, updateInfo.ToVersion)
+	
+	// Clear the notification (it's shown once)
+	m.updater.ClearPendingUpdateInfo()
 }
 
 func (m *Monitor) ProcessFileEdit(filePath string, isWrite bool) error {

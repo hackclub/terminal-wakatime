@@ -184,6 +184,11 @@ func (c *Config) Validate() error {
 	return nil
 }
 
+// PluginVersion returns the current plugin version
+func (c *Config) PluginVersion() string {
+	return PluginVersion
+}
+
 func joinStrings(slice []string, sep string) string {
 	if len(slice) == 0 {
 		return ""
