@@ -280,29 +280,33 @@ func (u *Updater) ClearPendingUpdateInfo() error {
 
 // PerformUpdateCheck checks for updates and downloads them in the background
 func (u *Updater) PerformUpdateCheck() {
-	// Always update the last check time first
-	u.UpdateLastCheckTime()
-
-	// Check for updates
+	// Check for updates first
 	release, isNewer, err := u.CheckForUpdate()
 	if err != nil || !isNewer {
-		return // Silently fail or no update needed
+		// Only update check time if we successfully checked (even if no update needed)
+		if err == nil {
+			u.UpdateLastCheckTime()
+		}
+		return
 	}
 
 	// Get download URL
 	downloadURL, err := u.GetAssetURL(release)
 	if err != nil {
-		return // Silently fail
+		return // Silently fail, don't update check time
 	}
 
 	// Download and install update
 	if err := u.DownloadUpdate(downloadURL); err != nil {
-		return // Silently fail
+		return // Silently fail, don't update check time
 	}
 
 	if err := u.InstallUpdate(release.TagName); err != nil {
-		return // Silently fail
+		return // Silently fail, don't update check time
 	}
+
+	// Only update the last check time after successful completion
+	u.UpdateLastCheckTime()
 }
 
 // CheckAndUpdate performs a complete update check and update if needed
