@@ -1,6 +1,8 @@
-# Terminal WakaTime for Hackatime
+# Terminal WakaTime
 
-Stop losing coding time to invisible terminal work.
+**The better way to track your coding time in WakaTime.**
+
+Stop losing hours of real coding work because WakaTime's desktop app can't see what you're doing in your terminal.
 
 ## Quick Setup (30 seconds)
 
@@ -8,13 +10,18 @@ Stop losing coding time to invisible terminal work.
 curl -fsSL http://hack.club/tw.sh | sh
 ```
 
-That's it. Everything in your terminal now counts toward your Hackatime.
+That's it. Your terminal work in **Bash, Zsh, and Fish** now gets properly tracked in WakaTime with correct project detection.
 
-## What This Solves
+## The Problem with WakaTime Desktop App
 
-You spend hours in terminal doing real coding work - git commits, vim editing, running tests, debugging - but Hackatime only sees "2 hours of coding" when you actually coded for 6 hours.
+You spend 6 hours coding, but WakaTime only shows 2 hours because:
 
-**Terminal WakaTime fills the gap.** Now your terminal work gets properly tracked with correct project names and file details.
+- ❌ **Can't see terminal work** - Git commits, vim editing, testing, debugging = invisible
+- ❌ **Wrong project names** - Everything becomes "Terminal" or "Unknown" 
+- ❌ **Misses file editing** - `vim src/app.js` doesn't count as coding time
+- ❌ **No shell integration** - Your actual development workflow is ignored
+
+**Terminal WakaTime fixes all of this.** It properly tracks your terminal sessions with accurate project detection and file-level detail.
 
 ## Works With Your Existing Plugins
 
@@ -26,12 +33,13 @@ You spend hours in terminal doing real coding work - git commits, vim editing, r
 
 ## Before vs After
 
-**Before Terminal WakaTime:**
+**Before Terminal WakaTime (WakaTime Desktop App Only):**
 ```
 Today's Coding Time: 2h 30m
 ├── VSCode: 2h 15m (my-website)
-└── Unknown: 15m
+└── Terminal: 15m (Unknown)
 ```
+*Missing: 4+ hours of git work, vim editing, testing, and debugging*
 
 **After Terminal WakaTime:**
 ```
@@ -44,6 +52,7 @@ Today's Coding Time: 6h 45m
 └── Terminal: 1h (hackclub-bot)
     └── Python scripting: 1h
 ```
+*Now tracking your complete development workflow with correct project names*
 
 ## What Gets Tracked
 
@@ -84,11 +93,11 @@ go install github.com/hackclub/terminal-wakatime/cmd/terminal-wakatime@latest
 
 ## Configuration
 
-**Hackatime API Key Setup:**
+**WakaTime API Key Setup:**
 ```bash
-terminal-wakatime config --key YOUR_HACKATIME_KEY
+terminal-wakatime config --key YOUR_WAKATIME_KEY
 ```
-Get your key from: [hackatime.hackclub.com/settings](https://hackatime.hackclub.com/settings)
+Get your key from: [wakatime.com/api-key](https://wakatime.com/api-key)
 
 **Basic Options:**
 ```bash
@@ -106,7 +115,7 @@ Terminal WakaTime hooks into your shell to detect:
 2. **What files you're editing** (vim, nano, code commands)  
 3. **What tools you're using** (git, npm, python, etc.)
 
-It sends this data to Hackatime using the same format as other plugins, so everything appears seamlessly in your dashboard.
+It sends this data to WakaTime using the same format as other plugins, so everything appears seamlessly in your dashboard.
 
 ## Editor Plugin Suggestions
 
@@ -156,16 +165,26 @@ terminal-wakatime deps --status
 terminal-wakatime deps --reinstall
 ```
 
+## Why Not Just Use WakaTime Desktop App?
+
+**WakaTime Desktop App** only tracks window focus - it has no idea what you're actually doing in your terminal. When you're deep in a coding session doing `git commits`, `vim editing`, `npm test`, it just sees "Terminal app is open" with no context.
+
+**Terminal WakaTime** hooks directly into your shell (Bash/Zsh/Fish) to track:
+- ✅ Actual commands and file editing
+- ✅ Correct project detection from your current directory  
+- ✅ Real coding time vs just having terminal open
+- ✅ Works alongside your existing editor plugins
+
 ## Privacy
 
 - No file contents are ever sent
 - Only file paths, timestamps, and metadata
 - All data encrypted in transit
-- Same privacy model as other Hackatime plugins
+- Same privacy model as other WakaTime plugins
 
 ## Contributing
 
-Built for Hack Club's Hackatime community. Pull requests welcome!
+Built for Hack Club's Hackatime community, but works with standard WakaTime. Pull requests welcome!
 
 ```bash
 git clone https://github.com/hackclub/terminal-wakatime
@@ -177,4 +196,4 @@ go test ./...
 
 - 🐛 [GitHub Issues](https://github.com/hackclub/terminal-wakatime/issues)
 - 💬 [Hack Club Slack](https://hackclub.com/slack) #hackatime channel
-- 📖 [Hackatime Docs](https://hackatime.hackclub.com/help)
+- 📖 [WakaTime Docs](https://wakatime.com/help)
