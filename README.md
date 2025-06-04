@@ -410,12 +410,6 @@ When you run commands like `vim`, `emacs`, `nano`, `code`, or other editors, Ter
 ```bash
 # Disable editor plugin suggestions
 terminal-wakatime config --disable-editor-suggestions true
-
-# Set custom notification frequency (default: once per day)
-terminal-wakatime config --editor-suggestion-frequency 7d  # weekly
-
-# Show suggestions for specific editors only
-terminal-wakatime config --editor-suggestions "vim,emacs"
 ```
 
 ## Development
@@ -432,8 +426,7 @@ terminal-wakatime/
 │   ├── tracker/              # WakaTime heartbeat generation
 │   └── wakatime/             # WakaTime CLI integration
 ├── scripts/                  # Build and deployment scripts
-├── testdata/                 # Test fixtures
-└── docs/                     # Additional documentation
+└── tests/                    # Test fixtures and integration tests
 ```
 
 ### Building
@@ -508,9 +501,6 @@ terminal-wakatime deps --reinstall
 
 # Test WakaTime CLI directly
 ~/.wakatime/wakatime-cli-$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m) --version
-
-# Check for download issues (corporate firewall, etc.)
-terminal-wakatime deps --test-download
 ```
 
 **Installation failures**:
@@ -518,8 +508,8 @@ terminal-wakatime deps --test-download
 # Check network connectivity
 curl -I https://api.github.com/repos/wakatime/wakatime-cli/releases/latest
 
-# Manual installation fallback
-terminal-wakatime deps --manual-install
+# Force reinstall if needed
+terminal-wakatime deps --reinstall
 
 # Use system package manager as fallback
 # Homebrew: brew install wakatime-cli
