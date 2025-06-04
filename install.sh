@@ -221,22 +221,8 @@ setup_shell_config() {
     
     print_success "Added integration to $config_file"
     
-    # Try to source the config file to make it immediately available
-    case "$shell_type" in
-        fish)
-            # Fish uses a different sourcing method
-            if [ "$FISH_VERSION" ]; then
-                fish -c "source $config_file" 2>/dev/null || true
-            fi
-            ;;
-        *)
-            # For bash/zsh, try to source if we're in the right shell
-            if [ "$BASH_VERSION" ] || [ "$ZSH_VERSION" ]; then
-                source "$config_file" 2>/dev/null || true
-                print_status "Sourced $config_file for immediate use"
-            fi
-            ;;
-    esac
+    # Note: Config will be active after terminal restart
+    # Sourcing immediately could cause background jobs, so we skip it
     
     return 0
 }
