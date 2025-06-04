@@ -13,7 +13,7 @@ import (
 const (
 	DefaultAPIURL             = "https://api.wakatime.com/api/v1"
 	DefaultHeartbeatFrequency = 2 * time.Minute // For display only - wakatime-cli handles actual rate limiting
-	DefaultMinCommandTime     = 2 * time.Second
+	DefaultMinCommandTime     = 0 * time.Second
 	DefaultConfigFile         = ".wakatime.cfg"
 	DefaultWakaTimeDir        = ".wakatime"
 	PluginName                = "terminal-wakatime"

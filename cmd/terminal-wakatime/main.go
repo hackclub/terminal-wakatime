@@ -83,13 +83,16 @@ Optionally specify the shell type: terminal-wakatime init fish`,
 				return fmt.Errorf("failed to get executable path: %w", err)
 			}
 
+			// Use global config to get minimum command time
+			minCommandTimeSeconds := int(cfg.MinCommandTime.Seconds())
+
 			var integration *shell.Integration
 			if len(args) > 0 {
 				// Shell type specified as argument
-				integration = shell.NewIntegrationForShell(binPath, args[0])
+				integration = shell.NewIntegrationForShellWithConfig(binPath, args[0], minCommandTimeSeconds)
 			} else {
 				// Auto-detect shell
-				integration = shell.NewIntegration(binPath)
+				integration = shell.NewIntegrationWithConfig(binPath, minCommandTimeSeconds)
 			}
 
 			hooks := integration.GenerateHooks()
@@ -113,6 +116,7 @@ func configCmd() *cobra.Command {
 	cmd.Flags().String("key", "", "Set WakaTime API key")
 	cmd.Flags().String("project", "", "Set default project name")
 	cmd.Flags().Int("heartbeat-frequency", 0, "Set heartbeat frequency in seconds (for display only - wakatime-cli handles actual rate limiting)")
+	cmd.Flags().Int("min-command-time", -1, "Set minimum command time in seconds")
 	cmd.Flags().Bool("debug", false, "Enable debug mode")
 	cmd.Flags().Bool("show", false, "Show current configuration")
 	cmd.Flags().Bool("disable-editor-suggestions", false, "Disable editor plugin suggestions")
@@ -140,6 +144,11 @@ func runConfigCommand(cmd *cobra.Command, args []string) error {
 
 	if freq, _ := cmd.Flags().GetInt("heartbeat-frequency"); freq > 0 {
 		cfg.HeartbeatFrequency = time.Duration(freq) * time.Second
+		modified = true
+	}
+
+	if minTime, _ := cmd.Flags().GetInt("min-command-time"); minTime >= 0 {
+		cfg.MinCommandTime = time.Duration(minTime) * time.Second
 		modified = true
 	}
 

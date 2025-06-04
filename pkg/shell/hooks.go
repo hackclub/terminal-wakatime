@@ -17,20 +17,34 @@ const (
 )
 
 type Integration struct {
-	shell         Shell
-	binPath       string
-	enableTiming  bool
-	enableDetails bool
+	shell          Shell
+	binPath        string
+	enableTiming   bool
+	enableDetails  bool
+	minCommandTime int
 }
 
 func NewIntegration(binPath string) *Integration {
 	shell := detectShell()
 
 	return &Integration{
-		shell:         shell,
-		binPath:       binPath,
-		enableTiming:  os.Getenv("TERMINAL_WAKATIME_COMMAND_TIMING") == "true",
-		enableDetails: os.Getenv("TERMINAL_WAKATIME_PROCESS_DETAILS") == "true",
+		shell:          shell,
+		binPath:        binPath,
+		enableTiming:   os.Getenv("TERMINAL_WAKATIME_COMMAND_TIMING") == "true",
+		enableDetails:  os.Getenv("TERMINAL_WAKATIME_PROCESS_DETAILS") == "true",
+		minCommandTime: 0, // Default to 0 seconds
+	}
+}
+
+func NewIntegrationWithConfig(binPath string, minCommandTimeSeconds int) *Integration {
+	shell := detectShell()
+
+	return &Integration{
+		shell:          shell,
+		binPath:        binPath,
+		enableTiming:   os.Getenv("TERMINAL_WAKATIME_COMMAND_TIMING") == "true",
+		enableDetails:  os.Getenv("TERMINAL_WAKATIME_PROCESS_DETAILS") == "true",
+		minCommandTime: minCommandTimeSeconds,
 	}
 }
 
@@ -48,10 +62,33 @@ func NewIntegrationForShell(binPath, shellName string) *Integration {
 	}
 
 	return &Integration{
-		shell:         shell,
-		binPath:       binPath,
-		enableTiming:  os.Getenv("TERMINAL_WAKATIME_COMMAND_TIMING") == "true",
-		enableDetails: os.Getenv("TERMINAL_WAKATIME_PROCESS_DETAILS") == "true",
+		shell:          shell,
+		binPath:        binPath,
+		enableTiming:   os.Getenv("TERMINAL_WAKATIME_COMMAND_TIMING") == "true",
+		enableDetails:  os.Getenv("TERMINAL_WAKATIME_PROCESS_DETAILS") == "true",
+		minCommandTime: 0, // Default to 0 seconds
+	}
+}
+
+func NewIntegrationForShellWithConfig(binPath, shellName string, minCommandTimeSeconds int) *Integration {
+	var shell Shell
+	switch strings.ToLower(shellName) {
+	case "fish":
+		shell = Fish
+	case "zsh":
+		shell = Zsh
+	case "bash":
+		shell = Bash
+	default:
+		shell = Bash // Default fallback
+	}
+
+	return &Integration{
+		shell:          shell,
+		binPath:        binPath,
+		enableTiming:   os.Getenv("TERMINAL_WAKATIME_COMMAND_TIMING") == "true",
+		enableDetails:  os.Getenv("TERMINAL_WAKATIME_PROCESS_DETAILS") == "true",
+		minCommandTime: minCommandTimeSeconds,
 	}
 }
 
@@ -140,7 +177,7 @@ __terminal_wakatime_postexec() {
         local duration=$((end_time - __TERMINAL_WAKATIME_START_TIME))
         
         # Only track commands that run for a minimum duration
-        if [ "$duration" -ge 2 ]; then
+        if [ "$duration" -ge %d ]; then
             "%s" track --command "$__TERMINAL_WAKATIME_COMMAND" --duration "$duration" --pwd "$__TERMINAL_WAKATIME_PWD" >/dev/null 2>&1 &
         fi
         
@@ -148,7 +185,7 @@ __terminal_wakatime_postexec() {
         unset __TERMINAL_WAKATIME_START_TIME
         unset __TERMINAL_WAKATIME_PWD
     fi
-}`, i.binPath)
+}`, i.minCommandTime, i.binPath)
 
 	promptCommand := `
 if [[ "$PROMPT_COMMAND" != *"__terminal_wakatime_postexec"* ]]; then
@@ -191,7 +228,7 @@ __terminal_wakatime_precmd() {
         local duration=$((end_time - __TERMINAL_WAKATIME_START_TIME))
         
         # Only track commands that run for a minimum duration
-        if [ "$duration" -ge 2 ]; then
+        if [ "$duration" -ge %d ]; then
             "%s" track --command "$__TERMINAL_WAKATIME_COMMAND" --duration "$duration" --pwd "$__TERMINAL_WAKATIME_PWD" >/dev/null 2>&1 &
         fi
         
@@ -199,7 +236,7 @@ __terminal_wakatime_precmd() {
         unset __TERMINAL_WAKATIME_START_TIME
         unset __TERMINAL_WAKATIME_PWD
     fi
-}`, i.binPath)
+}`, i.minCommandTime, i.binPath)
 
 	hookSetup := `
 # Add hooks to zsh
@@ -230,7 +267,7 @@ function __terminal_wakatime_postexec --on-event fish_postexec
         set duration (math $end_time - $__TERMINAL_WAKATIME_START_TIME)
         
         # Only track commands that run for a minimum duration
-        if test $duration -ge 2
+        if test $duration -ge %d
             "%s" track --command "$__TERMINAL_WAKATIME_COMMAND" --duration "$duration" --pwd "$__TERMINAL_WAKATIME_PWD" >/dev/null 2>&1 &
         end
         
@@ -238,7 +275,7 @@ function __terminal_wakatime_postexec --on-event fish_postexec
         set -e __TERMINAL_WAKATIME_START_TIME
         set -e __TERMINAL_WAKATIME_PWD
     end
-end`, i.binPath)
+end`, i.minCommandTime, i.binPath)
 }
 
 func (i *Integration) GetShellName() string {
