@@ -4,7 +4,7 @@
 *.dll
 *.so
 *.dylib
-terminal-wakatime
+/terminal-wakatime
 
 # Test binary, built with `go test -c`
 *.test
