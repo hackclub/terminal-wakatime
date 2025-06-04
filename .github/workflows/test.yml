@@ -21,6 +21,12 @@ jobs:
       with:
         go-version: ${{ matrix.go-version }}
 
+    - name: Install required shells for integration tests
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y zsh fish
+        # bash is already available by default
+
     - name: Cache Go modules
       uses: actions/cache@v4
       with:
