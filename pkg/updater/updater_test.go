@@ -185,7 +185,7 @@ func TestUpdater_UpdateInfo(t *testing.T) {
 		UpdateTime:  time.Now(),
 	}
 
-	if err := updater.saveUpdateInfo(updateInfo); err != nil {
+	if err := updater.SaveUpdateInfo(updateInfo); err != nil {
 		t.Fatalf("Failed to save update info: %v", err)
 	}
 

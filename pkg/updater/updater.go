@@ -85,7 +85,7 @@ func (u *Updater) UpdateLastCheckTime() error {
 
 // CheckForUpdate checks GitHub for a newer version
 func (u *Updater) CheckForUpdate() (*GitHubRelease, bool, error) {
-	client := &http.Client{Timeout: 10 * time.Second}
+	client := &http.Client{Timeout: 5 * time.Second}
 	
 	resp, err := client.Get(ReleasesAPI)
 	if err != nil {
@@ -180,7 +180,7 @@ func (u *Updater) GetAssetURL(release *GitHubRelease) (string, error) {
 
 // DownloadUpdate downloads the new binary to a temporary location
 func (u *Updater) DownloadUpdate(downloadURL string) error {
-	client := &http.Client{Timeout: 60 * time.Second}
+	client := &http.Client{Timeout: 30 * time.Second}
 	
 	resp, err := client.Get(downloadURL)
 	if err != nil {
