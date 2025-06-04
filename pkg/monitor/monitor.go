@@ -2,7 +2,6 @@ package monitor
 
 import (
 	"bufio"
-	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -31,7 +30,7 @@ type CommandEvent struct {
 
 func NewMonitor(cfg *config.Config) *Monitor {
 	logFile := filepath.Join(cfg.WakaTimeDir(), "commands.log")
-	
+
 	// Get current binary path for updater
 	binaryPath, _ := os.Executable()
 	upd := updater.NewUpdater(cfg.PluginVersion(), cfg.WakaTimeDir(), binaryPath)
@@ -47,7 +46,7 @@ func NewMonitor(cfg *config.Config) *Monitor {
 func (m *Monitor) ProcessCommand(command string, duration time.Duration, workingDir string) error {
 	// Check for pending update notifications (show once then clear)
 	m.checkAndShowUpdateNotification()
-	
+
 	// Check for updates in background (non-blocking)
 	go m.updater.CheckAndUpdate()
 
@@ -69,11 +68,11 @@ func (m *Monitor) checkAndShowUpdateNotification() {
 	if err != nil || updateInfo == nil {
 		return // No pending notification or error reading it
 	}
-	
+
 	// Show the notification
-	fmt.Fprintf(os.Stderr, "\n🚀 FYI! terminal-wakatime here. I self-updated from %s to %s.\n\n", 
+	fmt.Fprintf(os.Stderr, "\n🚀 FYI! terminal-wakatime here. I self-updated from %s to %s.\n\n",
 		updateInfo.FromVersion, updateInfo.ToVersion)
-	
+
 	// Clear the notification (it's shown once)
 	m.updater.ClearPendingUpdateInfo()
 }
@@ -89,92 +88,6 @@ func (m *Monitor) ProcessFileEdit(filePath string, isWrite bool) error {
 	}
 
 	return m.tracker.TrackFile(filePath, isWrite)
-}
-
-func (m *Monitor) StartFileWatcher(ctx context.Context, directories []string) error {
-	// This is a simplified file watcher
-	// In a production version, you'd use fsnotify or similar
-	ticker := time.NewTicker(5 * time.Second)
-	defer ticker.Stop()
-
-	watchedFiles := make(map[string]time.Time)
-
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-ticker.C:
-			for _, dir := range directories {
-				if err := m.scanDirectory(dir, watchedFiles); err != nil {
-					if m.config.Debug {
-						fmt.Fprintf(os.Stderr, "Error scanning directory %s: %v\n", dir, err)
-					}
-				}
-			}
-		}
-	}
-}
-
-func (m *Monitor) scanDirectory(dir string, watchedFiles map[string]time.Time) error {
-	return filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return nil // Skip errors
-		}
-
-		// Skip directories and hidden files
-		if info.IsDir() || strings.HasPrefix(info.Name(), ".") {
-			return nil
-		}
-
-		// Check if file is a code file
-		if !m.isCodeFile(path) {
-			return nil
-		}
-
-		modTime := info.ModTime()
-		if lastSeen, exists := watchedFiles[path]; !exists || modTime.After(lastSeen) {
-			watchedFiles[path] = modTime
-
-			// Track file modification
-			if exists {
-				m.tracker.TrackFile(path, true)
-			}
-		}
-
-		return nil
-	})
-}
-
-func (m *Monitor) isCodeFile(filePath string) bool {
-	codeExtensions := []string{
-		".go", ".py", ".js", ".ts", ".jsx", ".tsx", ".java", ".c", ".cpp", ".h", ".hpp",
-		".rs", ".php", ".rb", ".swift", ".kt", ".scala", ".clj", ".hs", ".ml", ".elm",
-		".css", ".scss", ".sass", ".less", ".html", ".xml", ".json", ".yaml", ".yml",
-		".toml", ".ini", ".cfg", ".conf", ".sh", ".bash", ".zsh", ".fish", ".ps1",
-		".sql", ".md", ".rst", ".tex", ".dockerfile", ".makefile", ".cmake",
-	}
-
-	ext := strings.ToLower(filepath.Ext(filePath))
-	for _, codeExt := range codeExtensions {
-		if ext == codeExt {
-			return true
-		}
-	}
-
-	// Check for files without extensions that might be code
-	base := strings.ToLower(filepath.Base(filePath))
-	specialFiles := []string{
-		"dockerfile", "makefile", "cmakelists.txt", "rakefile", "gemfile",
-		"requirements.txt", "setup.py", "package.json", "cargo.toml", "go.mod",
-	}
-
-	for _, special := range specialFiles {
-		if base == special {
-			return true
-		}
-	}
-
-	return false
 }
 
 func (m *Monitor) logCommand(command string, duration time.Duration, workingDir string) {

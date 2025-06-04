@@ -17,7 +17,7 @@ func TestCLIInstallationIntegration(t *testing.T) {
 
 	// Create a temporary directory for testing
 	testDir := t.TempDir()
-	
+
 	// Build the main binary
 	binaryPath := filepath.Join(testDir, "terminal-wakatime")
 	buildCmd := exec.Command("go", "build", "-o", binaryPath, "../cmd/terminal-wakatime")
@@ -43,7 +43,7 @@ func TestCLIInstallationIntegration(t *testing.T) {
 	t.Log("Setting up configuration...")
 	configCmd := exec.Command(binaryPath, "config", "--key", "test-api-key-123456789", "--project", "test-project")
 	configCmd.Env = append(os.Environ(), "HOME="+testDir)
-	
+
 	output, err := configCmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("Config command failed: %v\nOutput: %s", err, output)
@@ -53,23 +53,23 @@ func TestCLIInstallationIntegration(t *testing.T) {
 	t.Log("Testing CLI installation via track command...")
 	trackCmd := exec.Command(binaryPath, "track", "--command", "vim main.go", "--pwd", testDir, "--duration", "5", "-v")
 	trackCmd.Env = append(os.Environ(), "HOME="+testDir)
-	
+
 	trackOutput, err := trackCmd.CombinedOutput()
 	t.Logf("Track command output: %s", string(trackOutput))
-	
+
 	// Check if .wakatime directory was created
 	wakatimeDir := filepath.Join(testDir, ".wakatime")
 	if _, err := os.Stat(wakatimeDir); os.IsNotExist(err) {
 		t.Fatalf("WakaTime directory was not created: %s", wakatimeDir)
 	}
-	
+
 	// List contents of wakatime directory
 	files, err := os.ReadDir(wakatimeDir)
 	if err != nil {
 		t.Fatalf("Failed to read wakatime directory: %v", err)
 	}
 	t.Logf("WakaTime directory contents: %v", files)
-	
+
 	// Verify wakatime-cli was installed
 	binName := fmt.Sprintf("wakatime-cli-%s-%s", runtime.GOOS, runtime.GOARCH)
 	if runtime.GOOS == "windows" {
@@ -102,7 +102,7 @@ func TestCLIInstallationIntegration(t *testing.T) {
 
 	// Test 4: Verify subsequent calls don't reinstall
 	t.Log("Testing that CLI is not reinstalled on subsequent calls...")
-	
+
 	// Get modification time of existing CLI
 	stat1, err := os.Stat(expectedCLIPath)
 	if err != nil {
@@ -112,7 +112,7 @@ func TestCLIInstallationIntegration(t *testing.T) {
 	// Run another command that would trigger installation
 	trackCmd2 := exec.Command(binaryPath, "track", "--command", "another test", "--pwd", testDir, "--duration", "3")
 	trackCmd2.Env = append(os.Environ(), "HOME="+testDir)
-	
+
 	_, err = trackCmd2.CombinedOutput()
 	if err != nil {
 		t.Fatalf("Second track command failed: %v", err)

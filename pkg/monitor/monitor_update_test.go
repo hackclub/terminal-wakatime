@@ -22,7 +22,7 @@ func TestMonitor_UpdateNotifications(t *testing.T) {
 	originalHome := os.Getenv("HOME")
 	os.Setenv("HOME", tempDir)
 	defer os.Setenv("HOME", originalHome)
-	
+
 	cfg := &config.Config{
 		APIKey: "test-key",
 	}
@@ -71,7 +71,7 @@ func TestMonitor_BackgroundUpdateCheck(t *testing.T) {
 	originalHome := os.Getenv("HOME")
 	os.Setenv("HOME", tempDir)
 	defer os.Setenv("HOME", originalHome)
-	
+
 	cfg := &config.Config{
 		APIKey: "test-key",
 	}

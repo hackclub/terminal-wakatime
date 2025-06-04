@@ -1,21 +1,22 @@
 # Terminal WakaTime Agent Guide
 
 ## Build/Test Commands
-- `go build -o terminal-wakatime ./cmd/terminal-wakatime` - Build the main binary
-- `go test ./...` - Run all tests  
+Run `make help` to see all available targets. Key commands:
+
+**Primary Commands:**
+- `make build` - Build the main binary
+- `make test` - Run full test suite (unit + coverage)
+- `make test-integration` - Run integration tests
+- `make test-shell-integration` - Run shell integration tests
+- `make check` - Quick dev check (fmt + vet + short tests)
+- `make clean` - Clean build artifacts
+
+**Direct Go Commands (for specific needs):**
 - `go test ./pkg/tracker -v` - Run tests for specific package with verbose output
 - `go test -run TestName` - Run single test by name
-- `go test -race ./...` - Run tests with race detection
-- `go test -cover ./...` - Run tests with coverage
-- `go test -tags=integration ./...` - Run integration tests only
+- `go test -tags=integration ./tests/` - Run integration tests only
 - `go test -short ./...` - Run only fast unit tests (skip integration)
-- `make test` - Run full test suite including mocked wakatime-cli tests
-- `make test-coverage` - Generate coverage report
-- `make test-integration` - Run integration tests with real shell environments
-- `go mod tidy` - Clean up dependencies
-- `go fmt ./...` - Format all code
-- `go vet ./...` - Run static analysis
-- `golangci-lint run` - Run linter (if available)
+- `go test -race ./...` - Run tests with race detection
 
 ## Code Style Guidelines
 - Use `gofmt` for formatting - no tabs vs spaces debates

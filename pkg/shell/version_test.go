@@ -19,7 +19,7 @@ func TestGetShellVersion(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			version := GetShellVersion(tt.shell)
-			
+
 			if tt.expected {
 				// Version should not be "unknown" and should contain at least one dot
 				if version == "unknown" {
@@ -36,33 +36,33 @@ func TestGetShellVersion(t *testing.T) {
 
 func TestFormatPluginString(t *testing.T) {
 	pluginString := FormatPluginString("terminal-wakatime", "1.0.0")
-	
+
 	// Should be in format "shell/version terminal-wakatime/1.0.0"
 	parts := strings.Split(pluginString, " ")
 	if len(parts) != 2 {
 		t.Errorf("Expected 2 parts separated by space, got %d: %s", len(parts), pluginString)
 		return
 	}
-	
+
 	shellPart := parts[0]
 	pluginPart := parts[1]
-	
+
 	// Check shell part contains a slash
 	if !strings.Contains(shellPart, "/") {
 		t.Errorf("Expected shell part to contain '/', got: %s", shellPart)
 	}
-	
+
 	// Check plugin part is correct
 	if pluginPart != "terminal-wakatime/1.0.0" {
 		t.Errorf("Expected plugin part to be 'terminal-wakatime/1.0.0', got: %s", pluginPart)
 	}
-	
+
 	t.Logf("✓ Plugin string format is correct: %s", pluginString)
 }
 
 func TestGetCurrentShellInfo(t *testing.T) {
 	shell, version := GetCurrentShellInfo()
-	
+
 	// Should detect a valid shell
 	validShells := []Shell{Bash, Zsh, Fish}
 	isValidShell := false
@@ -72,15 +72,15 @@ func TestGetCurrentShellInfo(t *testing.T) {
 			break
 		}
 	}
-	
+
 	if !isValidShell {
 		t.Errorf("Expected a valid shell (bash, zsh, fish), got: %s", shell)
 	}
-	
+
 	// Version should not be empty
 	if version == "" {
 		t.Errorf("Expected version to not be empty")
 	}
-	
+
 	t.Logf("✓ Current shell: %s version %s", shell, version)
 }

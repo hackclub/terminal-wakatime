@@ -46,7 +46,7 @@ func NewIntegrationForShell(binPath, shellName string) *Integration {
 	default:
 		shell = Bash // Default fallback
 	}
-	
+
 	return &Integration{
 		shell:         shell,
 		binPath:       binPath,
@@ -58,13 +58,13 @@ func NewIntegrationForShell(binPath, shellName string) *Integration {
 // isRunningInFish checks if we're currently running inside a Fish shell
 // Fish is tricky to detect because FISH_VERSION is not exported as an env var
 func isRunningInFish() bool {
-	// The most reliable way is to check the $SHELL but also see if 
+	// The most reliable way is to check the $SHELL but also see if
 	// we're being piped from fish (which would indicate fish | source)
 	shell := os.Getenv("SHELL")
 	if shell != "" && filepath.Base(shell) == "fish" {
 		return true
 	}
-	
+
 	// Alternative: Check if stdin suggests we're being piped from fish
 	// When fish runs "terminal-wakatime init | source", we can sometimes detect this
 	return false
@@ -73,24 +73,24 @@ func isRunningInFish() bool {
 func detectShell() Shell {
 	// Check for shell-specific environment variables first
 	// These are more reliable than $SHELL when shells are nested
-	
+
 	// For zsh and bash, check version environment variables
-	zshVersion := os.Getenv("ZSH_VERSION")  
+	zshVersion := os.Getenv("ZSH_VERSION")
 	if zshVersion != "" {
 		return Zsh
 	}
-	
+
 	bashVersion := os.Getenv("BASH_VERSION")
 	if bashVersion != "" {
 		return Bash
 	}
-	
+
 	// For fish, check if we can run fish built-in commands
 	// Fish doesn't export FISH_VERSION as an environment variable
 	if isRunningInFish() {
 		return Fish
 	}
-	
+
 	// Fallback to $SHELL environment variable
 	shell := os.Getenv("SHELL")
 	if shell == "" {
@@ -364,7 +364,7 @@ func getBashVersion() string {
 				// First line is like "GNU bash, version 5.1.16(1)-release (x86_64-apple-darwin21.0)"
 				words := strings.Fields(lines[0])
 				for _, word := range words {
-					if strings.Contains(word, ".") && (strings.HasPrefix(word, "version") || 
+					if strings.Contains(word, ".") && (strings.HasPrefix(word, "version") ||
 						(len(word) > 0 && word[0] >= '0' && word[0] <= '9')) {
 						version := strings.TrimPrefix(word, "version")
 						if idx := strings.Index(version, "("); idx != -1 {
@@ -425,7 +425,7 @@ func getFishVersion() string {
 func FormatPluginString(pluginName, pluginVersion string) string {
 	shell := detectShell()
 	shellVersion := GetShellVersion(shell)
-	
+
 	return fmt.Sprintf("%s/%s %s/%s", string(shell), shellVersion, pluginName, pluginVersion)
 }
 

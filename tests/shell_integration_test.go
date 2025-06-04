@@ -52,7 +52,7 @@ func TestShellIntegration(t *testing.T) {
 
 func setupShellTestSuite(t *testing.T) *ShellTestSuite {
 	testDir := t.TempDir()
-	
+
 	// Build the main binary
 	binaryPath := filepath.Join(testDir, "terminal-wakatime")
 	buildCmd := exec.Command("go", "build", "-o", binaryPath, "../cmd/terminal-wakatime")
@@ -68,10 +68,10 @@ func setupShellTestSuite(t *testing.T) *ShellTestSuite {
 		mockCLIPath: mockCLIPath,
 		configDir:   filepath.Join(testDir, ".wakatime"),
 	}
-	
+
 	suite.createMockWakatimeCLI(t)
 	suite.setupTestConfig(t)
-	
+
 	return suite
 }
 
@@ -148,7 +148,7 @@ func (s *ShellTestSuite) setupTestConfig(t *testing.T) {
 	// Set environment variables
 	os.Setenv("HOME", s.testDir)
 	os.Setenv("WAKATIME_HOME", s.configDir)
-	
+
 	// Create the wakatime-cli directory structure that the wakatime package expects
 	binName := fmt.Sprintf("wakatime-cli-%s-%s", runtime.GOOS, runtime.GOARCH)
 	if runtime.GOOS == "windows" {
@@ -158,7 +158,7 @@ func (s *ShellTestSuite) setupTestConfig(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(wakatimeCLIDir), 0755); err != nil {
 		t.Fatalf("Failed to create wakatime-cli directory: %v", err)
 	}
-	
+
 	// Copy our mock to the expected location
 	if err := os.Rename(s.mockCLIPath, wakatimeCLIDir); err != nil {
 		// If rename fails, try copy
@@ -170,18 +170,18 @@ func (s *ShellTestSuite) setupTestConfig(t *testing.T) {
 			t.Fatalf("Failed to write mock CLI to expected location: %v", writeErr)
 		}
 	}
-	
+
 	// Update mock CLI path
 	s.mockCLIPath = wakatimeCLIDir
-	
+
 	// Create a test configuration
 	configCmd := exec.Command(s.binaryPath, "config", "--key", "test-api-key-123456789", "--project", "test-project")
-	configCmd.Env = append(os.Environ(), 
+	configCmd.Env = append(os.Environ(),
 		"HOME="+s.testDir,
 		"WAKATIME_HOME="+s.configDir,
 		"PATH="+filepath.Dir(s.mockCLIPath)+":"+os.Getenv("PATH"),
 	)
-	
+
 	if output, err := configCmd.CombinedOutput(); err != nil {
 		t.Fatalf("Failed to setup test config: %v\nOutput: %s", err, output)
 	}
@@ -196,10 +196,10 @@ func (s *ShellTestSuite) testShellLifecycle(t *testing.T, shellName, shellExec s
 
 	// Step 2: Create a test script that sources the hooks and runs commands
 	testScript := s.createTestScript(t, shellName, shellExec, hooks)
-	
+
 	// Step 3: Execute the test script
 	s.executeTestScript(t, shellName, shellExec, testScript)
-	
+
 	// Step 4: Verify tracking occurred (allow CI failures)
 	s.verifyTracking(t, shellName)
 }
@@ -223,14 +223,14 @@ func (s *ShellTestSuite) generateHooks(t *testing.T, shellName string) string {
 
 	initCmd := exec.Command(s.binaryPath, "init")
 	initCmd.Env = env
-	
+
 	output, err := initCmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("Failed to generate %s hooks: %v\nOutput: %s", shellName, err, output)
 	}
 
 	hooks := string(output)
-	
+
 	// Verify hooks contain expected functions
 	expectedFunctions := []string{"__terminal_wakatime_preexec"}
 	for _, fn := range expectedFunctions {
@@ -244,9 +244,9 @@ func (s *ShellTestSuite) generateHooks(t *testing.T, shellName string) string {
 
 func (s *ShellTestSuite) createTestScript(t *testing.T, shellName, shellExec, hooks string) string {
 	scriptPath := filepath.Join(s.testDir, fmt.Sprintf("test_%s.sh", shellName))
-	
+
 	var scriptContent string
-	
+
 	switch shellName {
 	case "fish":
 		scriptContent = s.createFishTestScript(hooks)
@@ -432,12 +432,12 @@ echo "Testing short command tracking..."
 env HOME="%s" WAKATIME_HOME="%s" PATH="%s:$PATH" "%s" track --command "ls" --duration 1 --pwd "%s"
 
 echo "=== Fish Integration Test Completed ==="
-`, s.testDir, s.configDir, filepath.Dir(s.mockCLIPath), s.testDir, s.testDir, 
-	s.testDir, s.configDir, filepath.Dir(s.mockCLIPath), s.binaryPath, s.testDir,
-	s.testDir, s.configDir, filepath.Dir(s.mockCLIPath), s.binaryPath, s.testDir,
-	s.testDir, s.configDir, filepath.Dir(s.mockCLIPath), s.binaryPath, s.testDir,
-	s.testDir, s.configDir, filepath.Dir(s.mockCLIPath), s.binaryPath,
-	s.testDir, s.configDir, filepath.Dir(s.mockCLIPath), s.binaryPath, s.testDir)
+`, s.testDir, s.configDir, filepath.Dir(s.mockCLIPath), s.testDir, s.testDir,
+		s.testDir, s.configDir, filepath.Dir(s.mockCLIPath), s.binaryPath, s.testDir,
+		s.testDir, s.configDir, filepath.Dir(s.mockCLIPath), s.binaryPath, s.testDir,
+		s.testDir, s.configDir, filepath.Dir(s.mockCLIPath), s.binaryPath, s.testDir,
+		s.testDir, s.configDir, filepath.Dir(s.mockCLIPath), s.binaryPath,
+		s.testDir, s.configDir, filepath.Dir(s.mockCLIPath), s.binaryPath, s.testDir)
 }
 
 func (s *ShellTestSuite) executeTestScript(t *testing.T, shellName, shellExec, scriptPath string) {
@@ -463,7 +463,7 @@ func (s *ShellTestSuite) executeTestScript(t *testing.T, shellName, shellExec, s
 
 	output, err := cmd.CombinedOutput()
 	t.Logf("%s script output:\n%s", shellName, string(output))
-	
+
 	if err != nil {
 		t.Fatalf("Failed to execute %s test script: %v\nOutput: %s", shellName, err, output)
 	}
@@ -506,7 +506,7 @@ func (s *ShellTestSuite) verifyTracking(t *testing.T, shellName string) {
 
 	// Verify actual tracking occurred
 	s.verifyHeartbeatContent(t, shellName, heartbeats)
-	
+
 	// Test the track command directly as a fallback verification
 	s.testDirectTracking(t, shellName)
 }
@@ -528,9 +528,9 @@ func (s *ShellTestSuite) verifyHeartbeatContent(t *testing.T, shellName string, 
 		if heartbeat == "" {
 			continue
 		}
-		
+
 		t.Logf("%s heartbeat: %s", shellName, heartbeat)
-		
+
 		// Check for different types of commands
 		if strings.Contains(heartbeat, "vim") || strings.Contains(heartbeat, "nvim") || strings.Contains(heartbeat, "code") {
 			foundEditor = true
@@ -583,7 +583,7 @@ func (s *ShellTestSuite) testDirectTracking(t *testing.T, shellName string) {
 		"PATH="+filepath.Dir(s.mockCLIPath)+":"+os.Getenv("PATH"),
 	)
 
-	trackCmd := exec.Command(s.binaryPath, "track", 
+	trackCmd := exec.Command(s.binaryPath, "track",
 		"--command", "test-command-"+shellName,
 		"--duration", "5",
 		"--pwd", s.testDir)
@@ -612,18 +612,18 @@ func TestShellHookGeneration(t *testing.T) {
 		expectedFunc []string
 	}{
 		{
-			shellName: "bash",
-			envVars:   map[string]string{"BASH_VERSION": "5.0", "SHELL": "/bin/bash"},
+			shellName:    "bash",
+			envVars:      map[string]string{"BASH_VERSION": "5.0", "SHELL": "/bin/bash"},
 			expectedFunc: []string{"__terminal_wakatime_preexec", "__terminal_wakatime_postexec", "PROMPT_COMMAND"},
 		},
 		{
-			shellName: "zsh", 
-			envVars:   map[string]string{"ZSH_VERSION": "5.8", "SHELL": "/bin/zsh"},
+			shellName:    "zsh",
+			envVars:      map[string]string{"ZSH_VERSION": "5.8", "SHELL": "/bin/zsh"},
 			expectedFunc: []string{"__terminal_wakatime_preexec", "__terminal_wakatime_precmd", "preexec_functions"},
 		},
 		{
-			shellName: "fish",
-			envVars:   map[string]string{"FISH_VERSION": "3.0", "SHELL": "/usr/bin/fish"},
+			shellName:    "fish",
+			envVars:      map[string]string{"FISH_VERSION": "3.0", "SHELL": "/usr/bin/fish"},
 			expectedFunc: []string{"__terminal_wakatime_preexec", "--on-event fish_preexec"},
 		},
 	}
@@ -634,14 +634,14 @@ func TestShellHookGeneration(t *testing.T) {
 				"HOME="+suite.testDir,
 				"WAKATIME_HOME="+suite.configDir,
 			)
-			
+
 			for key, value := range tt.envVars {
 				env = append(env, key+"="+value)
 			}
 
 			cmd := exec.Command(suite.binaryPath, "init")
 			cmd.Env = env
-			
+
 			output, err := cmd.CombinedOutput()
 			if err != nil {
 				t.Fatalf("Hook generation failed for %s: %v", tt.shellName, err)
@@ -650,7 +650,7 @@ func TestShellHookGeneration(t *testing.T) {
 			hooks := string(output)
 			for _, expectedFunc := range tt.expectedFunc {
 				if !strings.Contains(hooks, expectedFunc) {
-					t.Errorf("%s hooks missing expected content: %s\nGenerated hooks:\n%s", 
+					t.Errorf("%s hooks missing expected content: %s\nGenerated hooks:\n%s",
 						tt.shellName, expectedFunc, hooks)
 				}
 			}
@@ -666,28 +666,28 @@ func TestCommandParsing(t *testing.T) {
 	defer suite.cleanup()
 
 	tests := []struct {
-		name     string
-		args     []string
-		wantErr  bool
+		name    string
+		args    []string
+		wantErr bool
 	}{
 		{
-			name: "simple command",
-			args: []string{"track", "--command", "ls -la", "--duration", "3", "--pwd", "/tmp"},
+			name:    "simple command",
+			args:    []string{"track", "--command", "ls -la", "--duration", "3", "--pwd", "/tmp"},
 			wantErr: false,
 		},
 		{
-			name: "complex command with pipes",
-			args: []string{"track", "--command", "cat file.txt | grep pattern | wc -l", "--duration", "5", "--pwd", "/home/user"},
+			name:    "complex command with pipes",
+			args:    []string{"track", "--command", "cat file.txt | grep pattern | wc -l", "--duration", "5", "--pwd", "/home/user"},
 			wantErr: false,
 		},
 		{
-			name: "command with quotes",
-			args: []string{"track", "--command", `echo "hello world"`, "--duration", "2", "--pwd", "/"},
+			name:    "command with quotes",
+			args:    []string{"track", "--command", `echo "hello world"`, "--duration", "2", "--pwd", "/"},
 			wantErr: false,
 		},
 		{
-			name: "missing duration",
-			args: []string{"track", "--command", "test", "--pwd", "/"},
+			name:    "missing duration",
+			args:    []string{"track", "--command", "test", "--pwd", "/"},
 			wantErr: true,
 		},
 	}
@@ -704,11 +704,11 @@ func TestCommandParsing(t *testing.T) {
 			cmd.Env = env
 
 			output, err := cmd.CombinedOutput()
-			
+
 			if tt.wantErr && err == nil {
 				t.Errorf("Expected error for %s, but command succeeded", tt.name)
 			}
-			
+
 			if !tt.wantErr && err != nil {
 				t.Errorf("Command failed for %s: %v\nOutput: %s", tt.name, err, output)
 			}
@@ -746,23 +746,23 @@ func TestEditorDetection(t *testing.T) {
 				"PATH="+filepath.Dir(suite.mockCLIPath)+":"+os.Getenv("PATH"),
 			)
 
-			cmd := exec.Command(suite.binaryPath, "track", 
-				"--command", tt.command, 
-				"--duration", "3", 
+			cmd := exec.Command(suite.binaryPath, "track",
+				"--command", tt.command,
+				"--duration", "3",
 				"--pwd", suite.testDir)
 			cmd.Env = env
 
 			output, err := cmd.CombinedOutput()
 			outputStr := string(output)
-			
+
 			// Allow errors if they contain editor suggestions (that's expected behavior)
 			// Also allow wakatime-cli errors in CI environments where deps may not be available
 			isEditorTip := strings.Contains(outputStr, "Tip:")
-			isWakatimeError := strings.Contains(outputStr, "exit status") || 
-							  strings.Contains(outputStr, "wakatime-cli") ||
-							  strings.Contains(outputStr, "Error: exit status 104") ||
-							  (err != nil && strings.Contains(err.Error(), "exit status"))
-			
+			isWakatimeError := strings.Contains(outputStr, "exit status") ||
+				strings.Contains(outputStr, "wakatime-cli") ||
+				strings.Contains(outputStr, "Error: exit status 104") ||
+				(err != nil && strings.Contains(err.Error(), "exit status"))
+
 			if err != nil && !isEditorTip && !isWakatimeError {
 				t.Errorf("Track command failed for %s: %v\nOutput: %s", tt.command, err, output)
 			} else if err != nil && (isEditorTip || isWakatimeError) {

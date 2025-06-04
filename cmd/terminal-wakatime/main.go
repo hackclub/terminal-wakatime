@@ -91,7 +91,7 @@ Optionally specify the shell type: terminal-wakatime init fish`,
 				// Auto-detect shell
 				integration = shell.NewIntegration(binPath)
 			}
-			
+
 			hooks := integration.GenerateHooks()
 			fmt.Print(hooks)
 			return nil
@@ -510,59 +510,59 @@ Normally updates happen automatically in the background, but this command allows
 manual updates and testing.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			force, _ := cmd.Flags().GetBool("force")
-			
+
 			binaryPath, err := os.Executable()
 			if err != nil {
 				return fmt.Errorf("failed to get executable path: %w", err)
 			}
-			
+
 			upd := updater.NewUpdater(cfg.PluginVersion(), cfg.WakaTimeDir(), binaryPath)
-			
+
 			// Check if we should update (unless forced)
 			if !force && !upd.ShouldCheckForUpdate() {
 				fmt.Println("Update check was performed recently. Use --force to check anyway.")
 				return nil
 			}
-			
+
 			fmt.Println("Checking for updates...")
 			release, isNewer, err := upd.CheckForUpdate()
 			if err != nil {
 				return fmt.Errorf("failed to check for updates: %w", err)
 			}
-			
+
 			if !isNewer {
 				fmt.Printf("You're already running the latest version (%s)\n", cfg.PluginVersion())
 				upd.UpdateLastCheckTime()
 				return nil
 			}
-			
+
 			fmt.Printf("Found new version: %s (current: %s)\n", release.TagName, cfg.PluginVersion())
-			
+
 			// Get download URL
 			downloadURL, err := upd.GetAssetURL(release)
 			if err != nil {
 				return fmt.Errorf("failed to get download URL: %w", err)
 			}
-			
+
 			fmt.Println("Downloading update...")
 			if err := upd.DownloadUpdate(downloadURL); err != nil {
 				return fmt.Errorf("failed to download update: %w", err)
 			}
-			
+
 			fmt.Println("Installing update...")
 			if err := upd.InstallUpdate(release.TagName); err != nil {
 				return fmt.Errorf("failed to install update: %w", err)
 			}
-			
+
 			fmt.Printf("✓ Successfully updated to %s!\n", release.TagName)
 			fmt.Println("The update will take effect on your next terminal session.")
-			
+
 			return nil
 		},
 	}
-	
+
 	cmd.Flags().Bool("force", false, "Force update check even if checked recently")
-	
+
 	return cmd
 }
 

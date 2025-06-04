@@ -303,7 +303,7 @@ func (c *CLI) saveLastUpdateCheck() {
 func (c *CLI) SendHeartbeat(entity, entityType, category, language, project, branch string, isWrite bool) error {
 	// Format plugin string according to WakaTime spec: "shell/version terminal-wakatime/version"
 	pluginString := shell.FormatPluginString(config.PluginName, config.PluginVersion)
-	
+
 	args := []string{
 		"--entity", entity,
 		"--plugin", pluginString,

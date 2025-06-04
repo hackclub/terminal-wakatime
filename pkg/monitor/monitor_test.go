@@ -1,7 +1,6 @@
 package monitor
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -21,41 +20,6 @@ func TestNewMonitor(t *testing.T) {
 
 	if monitor.config != cfg {
 		t.Error("Expected monitor to store config reference")
-	}
-}
-
-func TestIsCodeFile(t *testing.T) {
-	cfg := &config.Config{}
-	monitor := NewMonitor(cfg)
-
-	tests := []struct {
-		filename string
-		expected bool
-	}{
-		{"main.go", true},
-		{"app.js", true},
-		{"style.css", true},
-		{"index.html", true},
-		{"config.json", true},
-		{"README.md", true},
-		{"Dockerfile", true},
-		{"Makefile", true},
-		{"package.json", true},
-		{"go.mod", true},
-		{"requirements.txt", true},
-		{"test.txt", false},
-		{"binary", false},
-		{"image.png", false},
-		{"video.mp4", false},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.filename, func(t *testing.T) {
-			result := monitor.isCodeFile(tt.filename)
-			if result != tt.expected {
-				t.Errorf("Expected isCodeFile('%s') to be %t, got %t", tt.filename, tt.expected, result)
-			}
-		})
 	}
 }
 
@@ -103,74 +67,6 @@ func TestProcessFileEdit(t *testing.T) {
 		// Expected to fail in test environment due to missing wakatime-cli
 		if !strings.Contains(err.Error(), "wakatime-cli") && !strings.Contains(err.Error(), "executable") {
 			t.Errorf("Unexpected error: %v", err)
-		}
-	}
-}
-
-func TestScanDirectory(t *testing.T) {
-	cfg := &config.Config{
-		Debug: true,
-	}
-	monitor := NewMonitor(cfg)
-
-	// Create a temporary directory with test files
-	tempDir := t.TempDir()
-
-	// Create some test files
-	testFiles := []string{
-		"main.go",
-		"app.js",
-		"style.css",
-		"README.md",
-		"binary",  // non-code file
-		".hidden", // hidden file
-		"config.json",
-	}
-
-	for _, filename := range testFiles {
-		filePath := filepath.Join(tempDir, filename)
-		if err := os.WriteFile(filePath, []byte("test content"), 0644); err != nil {
-			t.Fatalf("Failed to create test file %s: %v", filename, err)
-		}
-	}
-
-	// Create a subdirectory
-	subDir := filepath.Join(tempDir, "subdir")
-	os.MkdirAll(subDir, 0755)
-	subFile := filepath.Join(subDir, "sub.py")
-	os.WriteFile(subFile, []byte("print('hello')"), 0644)
-
-	watchedFiles := make(map[string]time.Time)
-	err := monitor.scanDirectory(tempDir, watchedFiles)
-	if err != nil {
-		t.Errorf("scanDirectory failed: %v", err)
-	}
-
-	// Check that code files were detected
-	expectedCodeFiles := []string{
-		filepath.Join(tempDir, "main.go"),
-		filepath.Join(tempDir, "app.js"),
-		filepath.Join(tempDir, "style.css"),
-		filepath.Join(tempDir, "README.md"),
-		filepath.Join(tempDir, "config.json"),
-		filepath.Join(subDir, "sub.py"),
-	}
-
-	for _, expectedFile := range expectedCodeFiles {
-		if _, found := watchedFiles[expectedFile]; !found {
-			t.Errorf("Expected code file %s to be watched", expectedFile)
-		}
-	}
-
-	// Check that non-code files were not detected
-	unexpectedFiles := []string{
-		filepath.Join(tempDir, "binary"),
-		filepath.Join(tempDir, ".hidden"),
-	}
-
-	for _, unexpectedFile := range unexpectedFiles {
-		if _, found := watchedFiles[unexpectedFile]; found {
-			t.Errorf("Expected non-code file %s to not be watched", unexpectedFile)
 		}
 	}
 }
@@ -309,27 +205,6 @@ func TestGetStatus(t *testing.T) {
 
 	if status["heartbeat_frequency"] != "2m0s" {
 		t.Errorf("Expected heartbeat_frequency to be '2m0s', got '%v'", status["heartbeat_frequency"])
-	}
-}
-
-func TestStartFileWatcher(t *testing.T) {
-	cfg := &config.Config{
-		Debug: false, // Disable debug to avoid log file creation
-	}
-	monitor := NewMonitor(cfg)
-
-	// Create a temporary directory to watch
-	tempDir := t.TempDir()
-
-	// Start watcher in background
-	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
-	defer cancel()
-
-	err := monitor.StartFileWatcher(ctx, []string{tempDir})
-
-	// Should return context.DeadlineExceeded or context.Canceled
-	if err != context.DeadlineExceeded && err != context.Canceled {
-		t.Errorf("Expected context cancellation error, got: %v", err)
 	}
 }
 

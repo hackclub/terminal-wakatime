@@ -68,14 +68,12 @@ test-short:
 # Format code
 fmt:
 	@echo "Formatting code..."
-	go fmt $(PKG_DIR)
-	go fmt $(MAIN_PKG)
+	go fmt ./...
 
 # Vet code
 vet:
 	@echo "Vetting code..."
-	go vet $(PKG_DIR)
-	go vet $(MAIN_PKG)
+	go vet ./...
 
 # Run linter (requires golangci-lint)
 lint:
@@ -133,11 +131,12 @@ test-mocked:
 # Generate documentation
 docs:
 	@echo "Generating documentation..."
-	@if command -v godoc >/dev/null 2>&1; then \
-		echo "Starting godoc server at http://localhost:6060"; \
-		godoc -http=:6060; \
+	@if command -v pkgsite >/dev/null 2>&1; then \
+		echo "Starting pkgsite server at http://localhost:8080"; \
+		pkgsite -http=localhost:8080; \
 	else \
-		echo "godoc not found. Install it with: go install golang.org/x/tools/cmd/godoc@latest"; \
+		echo "pkgsite not found. Install it with: go install golang.org/x/pkgsite/cmd/pkgsite@latest"; \
+		echo "Alternative: View docs at https://pkg.go.dev/github.com/hackclub/terminal-wakatime"; \
 	fi
 
 # Benchmark tests

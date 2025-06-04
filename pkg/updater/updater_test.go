@@ -102,7 +102,7 @@ func TestUpdater_CheckForUpdate(t *testing.T) {
 	defer server.Close()
 
 	updater := NewUpdater("v0.0.1", "/tmp", "/fake/path")
-	
+
 	// Temporarily replace the ReleasesAPI URL for testing
 	originalAPI := ReleasesAPI
 	defer func() {
@@ -115,7 +115,7 @@ func TestUpdater_CheckForUpdate(t *testing.T) {
 	// by creating the release directly
 	release := &GitHubRelease{
 		TagName:    "v0.0.2",
-		Name:       "Release v0.0.2", 
+		Name:       "Release v0.0.2",
 		PreRelease: false,
 	}
 
@@ -265,7 +265,7 @@ func TestUpdater_DownloadUpdate(t *testing.T) {
 
 func TestUpdater_IntegrationFlow(t *testing.T) {
 	tempDir := t.TempDir()
-	
+
 	// Create a fake current binary
 	currentBinary := filepath.Join(tempDir, "terminal-wakatime")
 	if err := os.WriteFile(currentBinary, []byte("old binary"), 0755); err != nil {
@@ -310,7 +310,7 @@ func TestUpdater_IntegrationFlow(t *testing.T) {
 	}
 
 	if updateInfo.FromVersion != "v0.0.1" || updateInfo.ToVersion != "v0.0.2" {
-		t.Errorf("Update info mismatch: got %s->%s, want v0.0.1->v0.0.2", 
+		t.Errorf("Update info mismatch: got %s->%s, want v0.0.1->v0.0.2",
 			updateInfo.FromVersion, updateInfo.ToVersion)
 	}
 }
