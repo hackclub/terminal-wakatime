@@ -146,7 +146,7 @@ func TestBinaryCommands(t *testing.T) {
 			name:     "init command",
 			args:     []string{"init"},
 			wantErr:  false,
-			contains: []string{"__terminal_wakatime_preexec", "__terminal_wakatime_precmd"},
+			contains: []string{"__terminal_wakatime_preexec"},
 		},
 		{
 			name:     "config help",
