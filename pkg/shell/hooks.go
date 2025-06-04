@@ -175,15 +175,18 @@ __terminal_wakatime_postexec() {
     if [ -n "$__TERMINAL_WAKATIME_COMMAND" ]; then
         local end_time="$(date +%%s)"
         local duration=$((end_time - __TERMINAL_WAKATIME_START_TIME))
+        local command="$__TERMINAL_WAKATIME_COMMAND"
+        local pwd="$__TERMINAL_WAKATIME_PWD"
         
-        # Only track commands that run for a minimum duration
-        if [ "$duration" -ge %d ]; then
-            "%s" track --command "$__TERMINAL_WAKATIME_COMMAND" --duration "$duration" --pwd "$__TERMINAL_WAKATIME_PWD" >/dev/null 2>&1 &
-        fi
-        
+        # Clear variables immediately
         unset __TERMINAL_WAKATIME_COMMAND
         unset __TERMINAL_WAKATIME_START_TIME
         unset __TERMINAL_WAKATIME_PWD
+        
+        # Only track commands that run for a minimum duration
+        if [ "$duration" -ge %d ]; then
+            "%s" track --command "$command" --duration "$duration" --pwd "$pwd" >/dev/null 2>&1 &
+        fi
     fi
 }`, i.minCommandTime, i.binPath)
 
@@ -226,15 +229,18 @@ __terminal_wakatime_precmd() {
     if [ -n "$__TERMINAL_WAKATIME_COMMAND" ]; then
         local end_time="$(date +%%s)"
         local duration=$((end_time - __TERMINAL_WAKATIME_START_TIME))
+        local command="$__TERMINAL_WAKATIME_COMMAND"
+        local pwd="$__TERMINAL_WAKATIME_PWD"
         
-        # Only track commands that run for a minimum duration
-        if [ "$duration" -ge %d ]; then
-            "%s" track --command "$__TERMINAL_WAKATIME_COMMAND" --duration "$duration" --pwd "$__TERMINAL_WAKATIME_PWD" >/dev/null 2>&1 &
-        fi
-        
+        # Clear variables immediately
         unset __TERMINAL_WAKATIME_COMMAND
         unset __TERMINAL_WAKATIME_START_TIME
         unset __TERMINAL_WAKATIME_PWD
+        
+        # Only track commands that run for a minimum duration
+        if [ "$duration" -ge %d ]; then
+            "%s" track --command "$command" --duration "$duration" --pwd "$pwd" >/dev/null 2>&1 &
+        fi
     fi
 }`, i.minCommandTime, i.binPath)
 
@@ -265,15 +271,18 @@ function __terminal_wakatime_postexec --on-event fish_postexec
     if set -q __TERMINAL_WAKATIME_COMMAND
         set end_time (date +%%s)
         set duration (math $end_time - $__TERMINAL_WAKATIME_START_TIME)
+        set command "$__TERMINAL_WAKATIME_COMMAND"
+        set pwd "$__TERMINAL_WAKATIME_PWD"
         
-        # Only track commands that run for a minimum duration
-        if test $duration -ge %d
-            "%s" track --command "$__TERMINAL_WAKATIME_COMMAND" --duration "$duration" --pwd "$__TERMINAL_WAKATIME_PWD" >/dev/null 2>&1 &
-        end
-        
+        # Clear variables immediately
         set -e __TERMINAL_WAKATIME_COMMAND
         set -e __TERMINAL_WAKATIME_START_TIME
         set -e __TERMINAL_WAKATIME_PWD
+        
+        # Only track commands that run for a minimum duration
+        if test $duration -ge %d
+            "%s" track --command "$command" --duration "$duration" --pwd "$pwd" >/dev/null 2>&1 &
+        end
     end
 end`, i.minCommandTime, i.binPath)
 }
