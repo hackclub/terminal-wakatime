@@ -39,6 +39,15 @@ test-integration:
 	@echo "Running integration tests..."
 	go test -tags=integration -v ./tests/
 
+# Run shell integration tests (tests full shell lifecycle)
+test-shell-integration:
+	@echo "Running shell integration tests..."
+	go test -v ./tests/ -run TestShell
+
+# Run all integration tests
+test-full-integration: test-integration test-shell-integration
+	@echo "All integration tests completed"
+
 # Run tests with coverage
 test-coverage:
 	@echo "Running tests with coverage..."
@@ -151,6 +160,8 @@ help:
 	@echo "  test          - Run all tests"
 	@echo "  test-unit     - Run unit tests only"
 	@echo "  test-integration - Run integration tests"
+	@echo "  test-shell-integration - Run shell integration tests"  
+	@echo "  test-full-integration - Run all integration tests"
 	@echo "  test-coverage - Run tests with coverage"
 	@echo "  test-race     - Run tests with race detection"
 	@echo "  test-short    - Run short tests (skip network tests)"

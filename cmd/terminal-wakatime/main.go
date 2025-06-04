@@ -230,17 +230,47 @@ func trackCmd() *cobra.Command {
 		Use:   "track",
 		Short: "Track a command execution",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			event, err := monitor.ParseTrackCommand(args)
-			if err != nil {
-				return err
-			}
-
-			mon := monitor.NewMonitor(cfg)
-			return mon.ProcessCommand(event.Command, event.Duration, event.WorkingDir)
+			return runTrackCommand(cmd, args)
 		},
 	}
 
+	cmd.Flags().String("command", "", "Command that was executed")
+	cmd.Flags().Int("duration", 0, "Duration in seconds")
+	cmd.Flags().String("pwd", "", "Working directory")
+
 	return cmd
+}
+
+func runTrackCommand(cmd *cobra.Command, args []string) error {
+	// Try to get values from flags first
+	command, _ := cmd.Flags().GetString("command")
+	duration, _ := cmd.Flags().GetInt("duration")
+	pwd, _ := cmd.Flags().GetString("pwd")
+
+	// If no flags provided, try to parse from args (backward compatibility)
+	if command == "" && len(args) > 0 {
+		event, err := monitor.ParseTrackCommand(args)
+		if err != nil {
+			return err
+		}
+		command = event.Command
+		duration = int(event.Duration.Seconds())
+		pwd = event.WorkingDir
+	}
+
+	// Validate required fields
+	if command == "" {
+		return fmt.Errorf("command is required (use --command flag)")
+	}
+	if duration <= 0 {
+		return fmt.Errorf("duration must be greater than 0 (use --duration flag)")
+	}
+	if pwd == "" {
+		return fmt.Errorf("working directory is required (use --pwd flag)")
+	}
+
+	mon := monitor.NewMonitor(cfg)
+	return mon.ProcessCommand(command, time.Duration(duration)*time.Second, pwd)
 }
 
 func statusCmd() *cobra.Command {
