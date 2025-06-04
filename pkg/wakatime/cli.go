@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/hackclub/terminal-wakatime/pkg/config"
+	"github.com/hackclub/terminal-wakatime/pkg/shell"
 )
 
 const (
@@ -300,9 +301,12 @@ func (c *CLI) saveLastUpdateCheck() {
 }
 
 func (c *CLI) SendHeartbeat(entity, entityType, category, language, project, branch string, isWrite bool) error {
+	// Format plugin string according to WakaTime spec: "shell/version terminal-wakatime/version"
+	pluginString := shell.FormatPluginString(config.PluginName, config.PluginVersion)
+	
 	args := []string{
 		"--entity", entity,
-		"--plugin", fmt.Sprintf("%s/%s", config.PluginName, config.PluginVersion),
+		"--plugin", pluginString,
 	}
 
 	if entityType != "" {
