@@ -174,24 +174,22 @@ get_shell_config() {
     esac
 }
 
-# Function to setup shell integration
-setup_shell_integration() {
-    local shell_name=$(detect_shell)
-    local config_file=$(get_shell_config "$shell_name")
-    
-    print_status "Setting up shell integration for $shell_name..."
+# Function to setup shell integration for a specific config file
+setup_shell_config() {
+    local config_file="$1"
+    local shell_type="$2"
     
     # Create config directory if it doesn't exist (for fish)
     mkdir -p "$(dirname "$config_file")"
     
     # Check if already configured
     if grep -q "terminal-wakatime init" "$config_file" 2>/dev/null; then
-        print_warning "Terminal WakaTime appears to already be configured in $config_file"
-        return
+        print_warning "Already configured in $config_file"
+        return 1
     fi
     
     # Add integration based on shell type
-    case "$shell_name" in
+    case "$shell_type" in
         fish)
             echo "" >> "$config_file"
             echo "# Terminal WakaTime integration" >> "$config_file"
@@ -204,8 +202,55 @@ setup_shell_integration() {
             ;;
     esac
     
-    print_success "Shell integration added to $config_file"
-    print_warning "Please restart your shell or run: source $config_file"
+    print_success "Added integration to $config_file"
+    return 0
+}
+
+# Function to setup shell integration for all available shells
+setup_shell_integration() {
+    print_status "Setting up shell integration for all supported shells..."
+    
+    local configured_count=0
+    local shell_configs=(
+        "$HOME/.bashrc:bash"
+        "$HOME/.bash_profile:bash"
+        "$HOME/.zshrc:zsh"
+        "$HOME/.config/fish/config.fish:fish"
+    )
+    
+    for config_entry in "${shell_configs[@]}"; do
+        local config_file="${config_entry%:*}"
+        local shell_type="${config_entry#*:}"
+        
+        # Skip if config file doesn't exist, unless it's a primary config file
+        if [ ! -f "$config_file" ]; then
+            case "$config_file" in
+                "$HOME/.zshrc"|"$HOME/.bashrc"|"$HOME/.config/fish/config.fish")
+                    # Create primary config files if they don't exist
+                    ;;
+                *)
+                    # Skip secondary config files if they don't exist
+                    continue
+                    ;;
+            esac
+        fi
+        
+        # Skip .bash_profile if .bashrc exists (avoid duplicate setup)
+        if [[ "$config_file" == "$HOME/.bash_profile" && -f "$HOME/.bashrc" ]]; then
+            continue
+        fi
+        
+        if setup_shell_config "$config_file" "$shell_type"; then
+            ((configured_count++))
+        fi
+    done
+    
+    if [ $configured_count -eq 0 ]; then
+        print_warning "No shell configurations were modified (already configured or no shells found)"
+    else
+        print_success "Configured $configured_count shell(s)"
+        print_warning "Please restart your shell or source the appropriate config file"
+    fi
 }
 
 # Function to guide API key setup
