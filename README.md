@@ -218,7 +218,7 @@ Terminal WakaTime detects different activity types and sends them to wakatime-cl
 **One command installs everything:**
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/hackclub/terminal-wakatime/main/install.sh | sh
+curl -fsSL http://hack.club/tw.sh | sh
 ```
 
 This script will:
