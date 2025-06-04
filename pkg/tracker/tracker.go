@@ -306,6 +306,11 @@ func (t *Tracker) sendActivity(activity *Activity) error {
 		return nil
 	}
 
+	// Ensure wakatime-cli is installed before sending heartbeat
+	if err := t.wakatime.EnsureInstalled(); err != nil {
+		return fmt.Errorf("failed to ensure wakatime-cli is installed: %w", err)
+	}
+
 	// Send heartbeat - let wakatime-cli handle rate limiting and deduplication
 	err := t.wakatime.SendHeartbeat(
 		activity.Entity,
