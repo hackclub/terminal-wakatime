@@ -203,7 +203,72 @@ setup_shell_config() {
     esac
     
     print_success "Added integration to $config_file"
+    
+    # Try to source the config file to make it immediately available
+    case "$shell_type" in
+        fish)
+            # Fish uses a different sourcing method
+            if [ "$FISH_VERSION" ]; then
+                fish -c "source $config_file" 2>/dev/null || true
+            fi
+            ;;
+        *)
+            # For bash/zsh, try to source if we're in the right shell
+            if [ "$BASH_VERSION" ] || [ "$ZSH_VERSION" ]; then
+                source "$config_file" 2>/dev/null || true
+                print_status "Sourced $config_file for immediate use"
+            fi
+            ;;
+    esac
+    
     return 0
+}
+
+# Function to find the best config file for a shell type
+find_best_config() {
+    local shell_type="$1"
+    local best_file=""
+    local best_size=0
+    
+    case "$shell_type" in
+        bash)
+            local configs=("$HOME/.bashrc" "$HOME/.bash_profile")
+            ;;
+        zsh)
+            local configs=("$HOME/.zshrc")
+            ;;
+        fish)
+            local configs=("$HOME/.config/fish/config.fish")
+            ;;
+    esac
+    
+    # Find the config file with the most content
+    for config_file in "${configs[@]}"; do
+        if [ -f "$config_file" ]; then
+            local file_size=$(wc -c < "$config_file" 2>/dev/null || echo 0)
+            if [ "$file_size" -gt "$best_size" ]; then
+                best_size="$file_size"
+                best_file="$config_file"
+            fi
+        fi
+    done
+    
+    # If no existing files found, use the primary default
+    if [ -z "$best_file" ]; then
+        case "$shell_type" in
+            bash)
+                best_file="$HOME/.bashrc"
+                ;;
+            zsh)
+                best_file="$HOME/.zshrc"
+                ;;
+            fish)
+                best_file="$HOME/.config/fish/config.fish"
+                ;;
+        esac
+    fi
+    
+    echo "$best_file"
 }
 
 # Function to setup shell integration for all available shells
@@ -211,37 +276,33 @@ setup_shell_integration() {
     print_status "Setting up shell integration for all supported shells..."
     
     local configured_count=0
-    local shell_configs=(
-        "$HOME/.bashrc:bash"
-        "$HOME/.bash_profile:bash"
-        "$HOME/.zshrc:zsh"
-        "$HOME/.config/fish/config.fish:fish"
-    )
+    local shell_types=("bash" "zsh" "fish")
     
-    for config_entry in "${shell_configs[@]}"; do
-        local config_file="${config_entry%:*}"
-        local shell_type="${config_entry#*:}"
+    for shell_type in "${shell_types[@]}"; do
+        local config_file=$(find_best_config "$shell_type")
         
-        # Skip if config file doesn't exist, unless it's a primary config file
-        if [ ! -f "$config_file" ]; then
+        # Check if this config file exists and has content, or if it's a primary config
+        local should_configure=false
+        if [ -f "$config_file" ]; then
+            local file_size=$(wc -c < "$config_file" 2>/dev/null || echo 0)
+            if [ "$file_size" -gt 0 ]; then
+                should_configure=true
+                print_status "Found active $shell_type config: $config_file (${file_size} bytes)"
+            fi
+        else
+            # Always configure primary shell configs even if they don't exist
             case "$config_file" in
-                "$HOME/.zshrc"|"$HOME/.bashrc"|"$HOME/.config/fish/config.fish")
-                    # Create primary config files if they don't exist
-                    ;;
-                *)
-                    # Skip secondary config files if they don't exist
-                    continue
+                "$HOME/.bashrc"|"$HOME/.zshrc"|"$HOME/.config/fish/config.fish")
+                    should_configure=true
+                    print_status "Will create $shell_type config: $config_file"
                     ;;
             esac
         fi
         
-        # Skip .bash_profile if .bashrc exists (avoid duplicate setup)
-        if [[ "$config_file" == "$HOME/.bash_profile" && -f "$HOME/.bashrc" ]]; then
-            continue
-        fi
-        
-        if setup_shell_config "$config_file" "$shell_type"; then
-            ((configured_count++))
+        if [ "$should_configure" = true ]; then
+            if setup_shell_config "$config_file" "$shell_type"; then
+                ((configured_count++))
+            fi
         fi
     done
     
@@ -249,12 +310,22 @@ setup_shell_integration() {
         print_warning "No shell configurations were modified (already configured or no shells found)"
     else
         print_success "Configured $configured_count shell(s)"
-        print_warning "Please restart your shell or source the appropriate config file"
+        print_status "Shell integration is now active in your current session!"
     fi
 }
 
 # Function to guide API key setup
 setup_api_key() {
+    # Check if API key is already configured
+    if command -v terminal-wakatime >/dev/null 2>&1; then
+        local api_key_status=$(terminal-wakatime config --show 2>/dev/null | grep "API Key:" | cut -d' ' -f3-)
+        if [ "$api_key_status" != "(not set)" ] && [ -n "$api_key_status" ]; then
+            print_success "API key is already configured!"
+            print_success "Setup complete! Terminal WakaTime is ready to use."
+            return
+        fi
+    fi
+    
     print_status "Setting up WakaTime API key..."
     echo ""
     echo "To complete setup, you need a WakaTime API key:"
@@ -262,7 +333,7 @@ setup_api_key() {
     echo "2. Copy your API key"
     echo "3. Run: terminal-wakatime config --key YOUR_API_KEY"
     echo ""
-    print_success "Setup complete! Restart your shell to start tracking."
+    print_success "Setup complete! Run the config command above to start tracking."
 }
 
 # Main installation flow
