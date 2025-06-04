@@ -169,10 +169,12 @@ This creates the **most accurate time tracking possible** by combining terminal-
 
 ### Architecture
 
-Following WakaTime plugin best practices, Terminal WakaTime is a simple wrapper that:
+Following official WakaTime plugin best practices, Terminal WakaTime implements the standard pattern:
 
 1. **Detects Terminal Events**: Monitors when you're working on files in the terminal
-2. **Calls wakatime-cli**: Passes the current file to `wakatime-cli --entity <file>`
+2. **Calls wakatime-cli intelligently**: Following the official WakaTime plugin pattern:
+   - Calls wakatime-cli if **file changes** OR **2+ minutes pass** OR **file save**
+   - Lets wakatime-cli handle rate limiting, deduplication, and API communication
 3. **Lets wakatime-cli handle everything**: Language detection, project detection, metadata extraction
 
 ### Data Flow
@@ -304,7 +306,7 @@ terminal-wakatime config --key YOUR_API_KEY
 # Set custom project name
 terminal-wakatime config --project my-terminal-project
 
-# Configure update frequency (default: 2 minutes)
+# Configure heartbeat display frequency (wakatime-cli handles actual rate limiting)
 terminal-wakatime config --heartbeat-frequency 120
 ```
 
