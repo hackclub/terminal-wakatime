@@ -185,7 +185,7 @@ __terminal_wakatime_postexec() {
         
         # Only track commands that run for a minimum duration
         if [ "$duration" -ge %d ]; then
-            "%s" track --command "$command" --duration "$duration" --pwd "$pwd" >/dev/null 2>&1 &
+            ("%s" track --command "$command" --duration "$duration" --pwd "$pwd" >/dev/null 2>&1 &)
         fi
     fi
 }`, i.minCommandTime, i.binPath)
@@ -239,7 +239,7 @@ __terminal_wakatime_precmd() {
         
         # Only track commands that run for a minimum duration
         if [ "$duration" -ge %d ]; then
-            "%s" track --command "$command" --duration "$duration" --pwd "$pwd" >/dev/null 2>&1 &
+            ("%s" track --command "$command" --duration "$duration" --pwd "$pwd" >/dev/null 2>&1 &)
         fi
     fi
 }`, i.minCommandTime, i.binPath)
@@ -281,7 +281,7 @@ function __terminal_wakatime_postexec --on-event fish_postexec
         
         # Only track commands that run for a minimum duration
         if test $duration -ge %d
-            "%s" track --command "$command" --duration "$duration" --pwd "$pwd" >/dev/null 2>&1 &
+            fish -c '"%s" track --command "$argv[1]" --duration "$argv[2]" --pwd "$argv[3]" >/dev/null 2>&1 &' -- "$command" "$duration" "$pwd"
         end
     end
 end`, i.minCommandTime, i.binPath)
