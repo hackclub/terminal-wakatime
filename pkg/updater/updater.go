@@ -21,7 +21,7 @@ const (
 	UpdateCheckInterval = 24 * time.Hour
 
 	// File names for update tracking
-	LastCheckFile  = "terminal_wakatime_last_update_check.txt"
+	LastCheckFile  = "terminal-wakatime_last_update_check.txt"
 	UpdateInfoFile = "update_info"
 	TempBinaryFile = "terminal-wakatime.new"
 )
