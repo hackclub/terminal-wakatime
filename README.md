@@ -8,6 +8,8 @@ Track your time in bash, zsh, and fish with WakaTime! Better alternative to the 
 curl -fsSL http://hack.club/terminal-wakatime.sh | sh
 ```
 
+This installs `terminal-wakatime` to `~/.wakatime/terminal-wakatime` and adds `eval "$(terminal-wakatime init)"` to your `~/.bashrc`, `~/.zshrc`, or `~/.config/fish/config.fish`.
+
 That's it. Your terminal work in **bash, zsh, and fish** now gets properly tracked in WakaTime with correct project detection.
 
 ## The Problem with WakaTime Desktop App
