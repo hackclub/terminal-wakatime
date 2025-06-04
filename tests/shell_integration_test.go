@@ -90,8 +90,45 @@ case "$1" in
         echo "WakaTime command line interface"
         ;;
     *)
-        # Log heartbeat calls
-        echo "Heartbeat sent: $*" >> %s/heartbeats.log
+        # Log detailed heartbeat information
+        entity=""
+        entity_type=""
+        language=""
+        project=""
+        category=""
+        
+        # Parse arguments to extract meaningful data
+        while [[ $# -gt 0 ]]; do
+            case $1 in
+                --entity)
+                    entity="$2"
+                    shift 2
+                    ;;
+                --entity-type)
+                    entity_type="$2"
+                    shift 2
+                    ;;
+                --language)
+                    language="$2"
+                    shift 2
+                    ;;
+                --project)
+                    project="$2"
+                    shift 2
+                    ;;
+                --category)
+                    category="$2"
+                    shift 2
+                    ;;
+                *)
+                    shift
+                    ;;
+            esac
+        done
+        
+        # Format heartbeat log entry
+        heartbeat_entry="entity=$entity type=$entity_type lang=$language proj=$project cat=$category"
+        echo "$heartbeat_entry" >> %s/heartbeats.log
         ;;
 esac
 exit 0
@@ -227,39 +264,71 @@ func (s *ShellTestSuite) createTestScript(t *testing.T, shellName, shellExec, ho
 }
 
 func (s *ShellTestSuite) createBashTestScript(hooks string) string {
+	// Create a script that runs commands in an interactive-like manner
 	return fmt.Sprintf(`#!/bin/bash
-set -e
 
 # Set up environment
 export HOME="%s"
 export WAKATIME_HOME="%s"
 export PATH="%s:$PATH"
 
+# Clear previous logs
+rm -f "%s/wakatime-calls.log" "%s/heartbeats.log"
+
 # Source the hooks
 %s
 
-# Test commands with sufficient duration
-echo "Starting bash test commands..."
+echo "=== Bash Integration Test Starting ==="
 
-# Command 1: Simple echo (should be tracked)
+# Simulate interactive commands by manually triggering the hooks
+# This mimics what would happen in a real interactive bash session
+
+# Test 1: Editor command
+echo "Testing vim command..."
+__terminal_wakatime_preexec "vim test.py"
 sleep 3
-echo "Test command 1 completed"
+__terminal_wakatime_postexec
 
-# Command 2: File operations (should be tracked) 
+# Test 2: File operations  
+echo "Testing file operations..."
+touch test_file.txt
+echo "content" > test_file.txt
+__terminal_wakatime_preexec "cat test_file.txt"
 sleep 3
-touch test_file.txt && echo "content" > test_file.txt
+__terminal_wakatime_postexec
 
-# Command 3: Directory operations (should be tracked)
+# Test 3: Git operations
+echo "Testing git command..."
+__terminal_wakatime_preexec "git status"
 sleep 3
-mkdir -p test_dir && cd test_dir
+__terminal_wakatime_postexec
 
-echo "Bash test commands completed"
-`, s.testDir, s.configDir, filepath.Dir(s.mockCLIPath), hooks)
+# Test 4: Build command
+echo "Testing build command..."
+__terminal_wakatime_preexec "make all"
+sleep 4
+__terminal_wakatime_postexec
+
+# Test 5: Short command (should NOT trigger - under minimum duration)
+echo "Testing short command (should not track)..."
+__terminal_wakatime_preexec "pwd"
+sleep 1
+__terminal_wakatime_postexec
+
+# Test 6: Directory navigation
+echo "Testing directory operations..."
+mkdir -p test_dir
+cd test_dir
+__terminal_wakatime_preexec "ls -la"
+sleep 3
+__terminal_wakatime_postexec
+
+echo "=== Bash Integration Test Completed ==="
+`, s.testDir, s.configDir, filepath.Dir(s.mockCLIPath), s.testDir, s.testDir, hooks)
 }
 
 func (s *ShellTestSuite) createZshTestScript(hooks string) string {
 	return fmt.Sprintf(`#!/bin/zsh
-set -e
 
 # Set up environment
 export HOME="%s"
@@ -267,26 +336,59 @@ export WAKATIME_HOME="%s"
 export PATH="%s:$PATH"
 export ZSH_VERSION="5.8"
 
+# Clear previous logs
+rm -f "%s/wakatime-calls.log" "%s/heartbeats.log"
+
 # Source the hooks
 %s
 
-# Test commands with sufficient duration
-echo "Starting zsh test commands..."
+echo "=== Zsh Integration Test Starting ==="
 
-# Command 1: Simple echo (should be tracked)
+# Simulate interactive commands by manually triggering the hooks
+# This mimics what would happen in a real interactive zsh session
+
+# Test 1: Code editor
+echo "Testing code command..."
+__terminal_wakatime_preexec "code main.py"
 sleep 3
-echo "Test command 1 completed"
+__terminal_wakatime_precmd
 
-# Command 2: File operations (should be tracked)
+# Test 2: File editing
+echo "Testing file editing..."
+touch main.py
+echo "print('hello')" > main.py
+__terminal_wakatime_preexec "nvim main.py"
+sleep 4
+__terminal_wakatime_precmd
+
+# Test 3: Package management
+echo "Testing npm command..."
+__terminal_wakatime_preexec "npm install express"
 sleep 3
-touch test_file.txt && echo "content" > test_file.txt
+__terminal_wakatime_precmd
 
-# Command 3: Directory operations (should be tracked)
-sleep 3
-mkdir -p test_dir && cd test_dir
+# Test 4: Docker command
+echo "Testing docker command..."
+__terminal_wakatime_preexec "docker build ."
+sleep 5
+__terminal_wakatime_precmd
 
-echo "Zsh test commands completed"
-`, s.testDir, s.configDir, filepath.Dir(s.mockCLIPath), hooks)
+# Test 5: Very short command (should NOT be tracked)
+echo "Testing very short command..."
+__terminal_wakatime_preexec "pwd"
+sleep 0.5
+__terminal_wakatime_precmd
+
+# Test 6: File watching/building
+echo "Testing build operations..."
+mkdir -p build
+cd build
+__terminal_wakatime_preexec "cargo build"
+sleep 4
+__terminal_wakatime_precmd
+
+echo "=== Zsh Integration Test Completed ==="
+`, s.testDir, s.configDir, filepath.Dir(s.mockCLIPath), s.testDir, s.testDir, hooks)
 }
 
 func (s *ShellTestSuite) createFishTestScript(hooks string) string {
@@ -297,24 +399,40 @@ set -x HOME "%s"
 set -x WAKATIME_HOME "%s"
 set -x PATH "%s" $PATH
 
-# Source the hooks (convert from POSIX to Fish syntax)
-# Note: This is a simplified approach - in real usage, fish hooks would be different
-echo "Fish test starting..."
+# Clear previous logs
+rm -f "%s/wakatime-calls.log" "%s/heartbeats.log"
 
-# For now, we'll test the basic tracking mechanism
-sleep 3
-echo "Test command 1 completed"
+echo "=== Fish Integration Test Starting ==="
 
-sleep 3
-touch test_file.txt
-echo "content" > test_file.txt
+# Fish doesn't easily support POSIX shell hooks, so we'll test direct tracking
+echo "Testing direct tracking calls..."
 
-sleep 3
-mkdir -p test_dir
-cd test_dir
+# Test 1: Simulate editor usage
+echo "Simulating neovim usage..."
+"%s" track --command "nvim config.fish" --duration 5 --pwd "%s"
 
-echo "Fish test commands completed"
-`, s.testDir, s.configDir, filepath.Dir(s.mockCLIPath))
+# Test 2: Simulate file operations
+echo "Simulating file operations..."
+touch test.fish
+echo "echo 'hello fish'" > test.fish
+"%s" track --command "cat test.fish" --duration 3 --pwd "%s"
+
+# Test 3: Simulate git operations
+echo "Simulating git operations..."
+"%s" track --command "git status" --duration 4 --pwd "%s"
+
+# Test 4: Simulate build operations
+echo "Simulating build operations..."
+mkdir -p fish_build
+cd fish_build
+"%s" track --command "make all" --duration 6 --pwd (pwd)
+
+# Test 5: Short command (should still work via direct call)
+echo "Testing short command tracking..."
+"%s" track --command "ls" --duration 1 --pwd "%s"
+
+echo "=== Fish Integration Test Completed ==="
+`, s.testDir, s.configDir, filepath.Dir(s.mockCLIPath), s.testDir, s.testDir, s.binaryPath, s.testDir, s.binaryPath, s.testDir, s.binaryPath, s.testDir, s.binaryPath, s.binaryPath, s.testDir)
 }
 
 func (s *ShellTestSuite) executeTestScript(t *testing.T, shellName, shellExec, scriptPath string) {
@@ -354,11 +472,18 @@ func (s *ShellTestSuite) verifyTracking(t *testing.T, shellName string) {
 	callsLogPath := filepath.Join(s.testDir, "wakatime-calls.log")
 	heartbeatsLogPath := filepath.Join(s.testDir, "heartbeats.log")
 
+	var wakatimeCalls []string
+	var heartbeats []string
+
 	// Read wakatime-cli calls
 	if _, err := os.Stat(callsLogPath); err == nil {
 		content, err := os.ReadFile(callsLogPath)
 		if err == nil {
-			t.Logf("%s wakatime-cli calls:\n%s", shellName, string(content))
+			callsContent := strings.TrimSpace(string(content))
+			if callsContent != "" {
+				wakatimeCalls = strings.Split(callsContent, "\n")
+			}
+			t.Logf("%s wakatime-cli calls (%d total):\n%s", shellName, len(wakatimeCalls), callsContent)
 		}
 	}
 
@@ -366,20 +491,82 @@ func (s *ShellTestSuite) verifyTracking(t *testing.T, shellName string) {
 	if _, err := os.Stat(heartbeatsLogPath); err == nil {
 		content, err := os.ReadFile(heartbeatsLogPath)
 		if err == nil {
-			heartbeats := string(content)
-			t.Logf("%s heartbeats:\n%s", shellName, heartbeats)
-			
-			// Verify at least some tracking occurred
-			if len(strings.TrimSpace(heartbeats)) == 0 {
-				t.Logf("Warning: No heartbeats recorded for %s (this may be expected if hooks didn't execute)", shellName)
-			} else {
-				t.Logf("✓ %s tracking verified - heartbeats were recorded", shellName)
+			heartbeatsContent := strings.TrimSpace(string(content))
+			if heartbeatsContent != "" {
+				heartbeats = strings.Split(heartbeatsContent, "\n")
 			}
+			t.Logf("%s heartbeats (%d total):\n%s", shellName, len(heartbeats), heartbeatsContent)
 		}
 	}
 
+	// Verify actual tracking occurred
+	s.verifyHeartbeatContent(t, shellName, heartbeats)
+	
 	// Test the track command directly as a fallback verification
 	s.testDirectTracking(t, shellName)
+}
+
+func (s *ShellTestSuite) verifyHeartbeatContent(t *testing.T, shellName string, heartbeats []string) {
+	if len(heartbeats) == 0 {
+		t.Errorf("%s: No heartbeats were generated - shell hooks may not be working correctly", shellName)
+		return
+	}
+
+	// Track what we found
+	foundEditor := false
+	foundFile := false
+	foundGit := false
+	foundBuild := false
+
+	for _, heartbeat := range heartbeats {
+		if heartbeat == "" {
+			continue
+		}
+		
+		t.Logf("%s heartbeat: %s", shellName, heartbeat)
+		
+		// Check for different types of commands
+		if strings.Contains(heartbeat, "vim") || strings.Contains(heartbeat, "nvim") || strings.Contains(heartbeat, "code") {
+			foundEditor = true
+		}
+		if strings.Contains(heartbeat, "touch") || strings.Contains(heartbeat, "cat") || strings.Contains(heartbeat, ".txt") || strings.Contains(heartbeat, ".py") || strings.Contains(heartbeat, ".fish") {
+			foundFile = true
+		}
+		if strings.Contains(heartbeat, "git") {
+			foundGit = true
+		}
+		if strings.Contains(heartbeat, "make") || strings.Contains(heartbeat, "npm") || strings.Contains(heartbeat, "docker") {
+			foundBuild = true
+		}
+	}
+
+	// Report findings
+	findings := []string{}
+	if foundEditor {
+		findings = append(findings, "editor commands")
+	}
+	if foundFile {
+		findings = append(findings, "file operations")
+	}
+	if foundGit {
+		findings = append(findings, "git commands")
+	}
+	if foundBuild {
+		findings = append(findings, "build commands")
+	}
+
+	if len(findings) > 0 {
+		t.Logf("✓ %s: Successfully tracked %s", shellName, strings.Join(findings, ", "))
+	} else {
+		t.Logf("⚠ %s: Heartbeats generated but no recognizable command types found", shellName)
+	}
+
+	// Minimum expectation: at least some heartbeats should be generated
+	if len(heartbeats) < 3 {
+		t.Errorf("%s: Expected at least 3 heartbeats but got %d - shell integration may not be working properly", shellName, len(heartbeats))
+	} else {
+		t.Logf("✓ %s: Generated %d heartbeats (sufficient for integration test)", shellName, len(heartbeats))
+	}
 }
 
 func (s *ShellTestSuite) testDirectTracking(t *testing.T, shellName string) {
