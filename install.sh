@@ -13,22 +13,23 @@ NC='\033[0m' # No Color
 REPO="hackclub/terminal-wakatime"
 BINARY_NAME="terminal-wakatime"
 INSTALL_DIR="/usr/local/bin"
+WAKATIME_DIR="$HOME/.wakatime"
 
 # Function to print colored output
 print_status() {
-    echo -e "${BLUE}[INFO]${NC} $1"
+    printf "${BLUE}[INFO]${NC} %s\n" "$1"
 }
 
 print_success() {
-    echo -e "${GREEN}[SUCCESS]${NC} $1"
+    printf "${GREEN}[SUCCESS]${NC} %s\n" "$1"
 }
 
 print_warning() {
-    echo -e "${YELLOW}[WARNING]${NC} $1"
+    printf "${YELLOW}[WARNING]${NC} %s\n" "$1"
 }
 
 print_error() {
-    echo -e "${RED}[ERROR]${NC} $1"
+    printf "${RED}[ERROR]${NC} %s\n" "$1"
 }
 
 # Function to detect OS and architecture
@@ -113,9 +114,9 @@ download_binary() {
 install_binary() {
     local temp_file="/tmp/$BINARY_NAME"
     
-    # Try to install to /usr/local/bin first
+    # Try to install to /usr/local/bin first (system-wide)
     if [ -w "$INSTALL_DIR" ] || sudo -n true 2>/dev/null; then
-        print_status "Installing to $INSTALL_DIR..."
+        print_status "Installing to $INSTALL_DIR (system-wide)..."
         if [ -w "$INSTALL_DIR" ]; then
             mv "$temp_file" "$INSTALL_DIR/$BINARY_NAME"
         else
@@ -123,16 +124,15 @@ install_binary() {
         fi
         print_success "Installed to $INSTALL_DIR/$BINARY_NAME"
     else
-        # Fallback to user's local bin directory
-        local user_bin="$HOME/.local/bin"
-        mkdir -p "$user_bin"
-        mv "$temp_file" "$user_bin/$BINARY_NAME"
-        print_success "Installed to $user_bin/$BINARY_NAME"
+        # Install to ~/.wakatime directory (keeps everything together)
+        mkdir -p "$WAKATIME_DIR"
+        mv "$temp_file" "$WAKATIME_DIR/$BINARY_NAME"
+        print_success "Installed to $WAKATIME_DIR/$BINARY_NAME"
         
-        # Check if user's bin is in PATH
-        if [[ ":$PATH:" != *":$user_bin:"* ]]; then
-            print_warning "Add $user_bin to your PATH by adding this line to your shell config:"
-            echo "export PATH=\"$user_bin:\$PATH\""
+        # Check if wakatime dir is in PATH
+        if [[ ":$PATH:" != *":$WAKATIME_DIR:"* ]]; then
+            print_warning "Adding $WAKATIME_DIR to your PATH..."
+            add_to_path "$WAKATIME_DIR"
         fi
     fi
 }
@@ -174,30 +174,47 @@ get_shell_config() {
     esac
 }
 
+# Function to add directory to PATH in shell configs
+add_to_path() {
+    local dir_to_add="$1"
+    
+    # Update current session PATH
+    export PATH="$dir_to_add:$PATH"
+    print_success "Updated PATH for current session"
+    
+    # Note: PATH will be added along with shell integration in setup_shell_config
+}
+
 # Function to setup shell integration for a specific config file
 setup_shell_config() {
     local config_file="$1"
     local shell_type="$2"
+    local needs_path="$3"
     
     # Create config directory if it doesn't exist (for fish)
     mkdir -p "$(dirname "$config_file")"
     
     # Check if already configured
-    if grep -q "terminal-wakatime init" "$config_file" 2>/dev/null; then
+    if grep -q "terminal-wakatime" "$config_file" 2>/dev/null; then
         print_warning "Already configured in $config_file"
         return 1
     fi
     
-    # Add integration based on shell type
+    # Add clean integration block based on shell type
+    echo "" >> "$config_file"
+    echo "# terminal-wakatime setup" >> "$config_file"
+    
     case "$shell_type" in
         fish)
-            echo "" >> "$config_file"
-            echo "# Terminal WakaTime integration" >> "$config_file"
+            if [ "$needs_path" = "true" ]; then
+                echo 'set -x PATH "$HOME/.wakatime" $PATH' >> "$config_file"
+            fi
             echo "terminal-wakatime init | source" >> "$config_file"
             ;;
         *)
-            echo "" >> "$config_file"
-            echo "# Terminal WakaTime integration" >> "$config_file"
+            if [ "$needs_path" = "true" ]; then
+                echo 'export PATH="$HOME/.wakatime:$PATH"' >> "$config_file"
+            fi
             echo 'eval "$(terminal-wakatime init)"' >> "$config_file"
             ;;
     esac
@@ -277,6 +294,12 @@ setup_shell_integration() {
     
     local configured_count=0
     local shell_types=("bash" "zsh" "fish")
+    local needs_path="false"
+    
+    # Check if we installed to ~/.wakatime (not system-wide)
+    if [ -f "$WAKATIME_DIR/$BINARY_NAME" ]; then
+        needs_path="true"
+    fi
     
     for shell_type in "${shell_types[@]}"; do
         local config_file=$(find_best_config "$shell_type")
@@ -300,7 +323,7 @@ setup_shell_integration() {
         fi
         
         if [ "$should_configure" = true ]; then
-            if setup_shell_config "$config_file" "$shell_type"; then
+            if setup_shell_config "$config_file" "$shell_type" "$needs_path"; then
                 ((configured_count++))
             fi
         fi
