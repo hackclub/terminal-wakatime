@@ -67,21 +67,30 @@ to remote systems.`,
 
 func initCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "init",
+		Use:   "init [shell]",
 		Short: "Generate shell integration code",
 		Long: `Generate shell-specific integration code that should be added to your shell configuration.
 
 For Bash/Zsh: eval "$(terminal-wakatime init)"
-For Fish: terminal-wakatime init | source`,
+For Fish: terminal-wakatime init fish | source
+
+Optionally specify the shell type: terminal-wakatime init fish`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			binPath, err := os.Executable()
 			if err != nil {
 				return fmt.Errorf("failed to get executable path: %w", err)
 			}
 
-			integration := shell.NewIntegration(binPath)
+			var integration *shell.Integration
+			if len(args) > 0 {
+				// Shell type specified as argument
+				integration = shell.NewIntegrationForShell(binPath, args[0])
+			} else {
+				// Auto-detect shell
+				integration = shell.NewIntegration(binPath)
+			}
+			
 			hooks := integration.GenerateHooks()
-
 			fmt.Print(hooks)
 			return nil
 		},

@@ -209,7 +209,7 @@ setup_shell_config() {
             if [ "$needs_path" = "true" ]; then
                 echo 'set -x PATH "$HOME/.wakatime" $PATH' >> "$config_file"
             fi
-            echo "terminal-wakatime init | source" >> "$config_file"
+            echo "terminal-wakatime init fish | source" >> "$config_file"
             ;;
         *)
             if [ "$needs_path" = "true" ]; then

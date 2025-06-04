@@ -3,6 +3,7 @@ package shell
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 )
@@ -33,7 +34,64 @@ func NewIntegration(binPath string) *Integration {
 	}
 }
 
+func NewIntegrationForShell(binPath, shellName string) *Integration {
+	var shell Shell
+	switch strings.ToLower(shellName) {
+	case "fish":
+		shell = Fish
+	case "zsh":
+		shell = Zsh
+	case "bash":
+		shell = Bash
+	default:
+		shell = Bash // Default fallback
+	}
+	
+	return &Integration{
+		shell:         shell,
+		binPath:       binPath,
+		enableTiming:  os.Getenv("TERMINAL_WAKATIME_COMMAND_TIMING") == "true",
+		enableDetails: os.Getenv("TERMINAL_WAKATIME_PROCESS_DETAILS") == "true",
+	}
+}
+
+// isRunningInFish checks if we're currently running inside a Fish shell
+// Fish is tricky to detect because FISH_VERSION is not exported as an env var
+func isRunningInFish() bool {
+	// The most reliable way is to check the $SHELL but also see if 
+	// we're being piped from fish (which would indicate fish | source)
+	shell := os.Getenv("SHELL")
+	if shell != "" && filepath.Base(shell) == "fish" {
+		return true
+	}
+	
+	// Alternative: Check if stdin suggests we're being piped from fish
+	// When fish runs "terminal-wakatime init | source", we can sometimes detect this
+	return false
+}
+
 func detectShell() Shell {
+	// Check for shell-specific environment variables first
+	// These are more reliable than $SHELL when shells are nested
+	
+	// For zsh and bash, check version environment variables
+	zshVersion := os.Getenv("ZSH_VERSION")  
+	if zshVersion != "" {
+		return Zsh
+	}
+	
+	bashVersion := os.Getenv("BASH_VERSION")
+	if bashVersion != "" {
+		return Bash
+	}
+	
+	// For fish, check if we can run fish built-in commands
+	// Fish doesn't export FISH_VERSION as an environment variable
+	if isRunningInFish() {
+		return Fish
+	}
+	
+	// Fallback to $SHELL environment variable
 	shell := os.Getenv("SHELL")
 	if shell == "" {
 		return Bash // Default fallback
@@ -271,4 +329,109 @@ func expandPath(path string) string {
 		return filepath.Join(home, path[2:])
 	}
 	return path
+}
+
+// GetShellVersion returns the version of the detected shell
+func GetShellVersion(shell Shell) string {
+	switch shell {
+	case Bash:
+		return getBashVersion()
+	case Zsh:
+		return getZshVersion()
+	case Fish:
+		return getFishVersion()
+	default:
+		return "unknown"
+	}
+}
+
+// getBashVersion gets the bash version from environment or command
+func getBashVersion() string {
+	// First try environment variable
+	if version := os.Getenv("BASH_VERSION"); version != "" {
+		// BASH_VERSION is like "5.1.16(1)-release", extract just "5.1.16"
+		if idx := strings.Index(version, "("); idx != -1 {
+			return version[:idx]
+		}
+		return version
+	}
+
+	// Fallback to running bash --version
+	if cmd := exec.Command("bash", "--version"); cmd != nil {
+		if output, err := cmd.Output(); err == nil {
+			lines := strings.Split(string(output), "\n")
+			if len(lines) > 0 {
+				// First line is like "GNU bash, version 5.1.16(1)-release (x86_64-apple-darwin21.0)"
+				words := strings.Fields(lines[0])
+				for _, word := range words {
+					if strings.Contains(word, ".") && (strings.HasPrefix(word, "version") || 
+						(len(word) > 0 && word[0] >= '0' && word[0] <= '9')) {
+						version := strings.TrimPrefix(word, "version")
+						if idx := strings.Index(version, "("); idx != -1 {
+							return version[:idx]
+						}
+						if idx := strings.Index(version, "-"); idx != -1 {
+							return version[:idx]
+						}
+						return version
+					}
+				}
+			}
+		}
+	}
+
+	return "unknown"
+}
+
+// getZshVersion gets the zsh version from environment or command
+func getZshVersion() string {
+	// First try environment variable
+	if version := os.Getenv("ZSH_VERSION"); version != "" {
+		return version
+	}
+
+	// Fallback to running zsh --version
+	if cmd := exec.Command("zsh", "--version"); cmd != nil {
+		if output, err := cmd.Output(); err == nil {
+			// Output is like "zsh 5.8 (x86_64-apple-darwin21.0)"
+			words := strings.Fields(string(output))
+			if len(words) >= 2 {
+				return words[1]
+			}
+		}
+	}
+
+	return "unknown"
+}
+
+// getFishVersion gets the fish version
+func getFishVersion() string {
+	// Fish doesn't export FISH_VERSION, so we need to run fish --version
+	if cmd := exec.Command("fish", "--version"); cmd != nil {
+		if output, err := cmd.Output(); err == nil {
+			// Output is like "fish, version 3.4.1"
+			words := strings.Fields(string(output))
+			if len(words) >= 3 {
+				return words[2]
+			}
+		}
+	}
+
+	return "unknown"
+}
+
+// FormatPluginString formats the plugin string according to WakaTime spec:
+// "{editor_name}/{editor_version} {plugin_name}/{plugin_version}"
+func FormatPluginString(pluginName, pluginVersion string) string {
+	shell := detectShell()
+	shellVersion := GetShellVersion(shell)
+	
+	return fmt.Sprintf("%s/%s %s/%s", string(shell), shellVersion, pluginName, pluginVersion)
+}
+
+// GetCurrentShellInfo returns the current shell and its version
+func GetCurrentShellInfo() (Shell, string) {
+	shell := detectShell()
+	version := GetShellVersion(shell)
+	return shell, version
 }
