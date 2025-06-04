@@ -78,9 +78,6 @@ eval "$(terminal-wakatime init)"
 
 ### Package Managers
 ```bash
-# Homebrew
-brew install hackclub/tap/terminal-wakatime
-
 # Go
 go install github.com/hackclub/terminal-wakatime/cmd/terminal-wakatime@latest
 ```
