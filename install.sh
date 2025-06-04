@@ -384,6 +384,18 @@ main() {
     
     echo ""
     print_success "Installation completed successfully! 🎉"
+    
+    # Show restart message with ASCII art
+    echo ""
+    echo "┌─────────────────────────────────────────────────────────────┐"
+    echo "│                                                             │"
+    echo "│  🔄  Please restart your terminal to complete the setup!   │"
+    echo "│                                                             │"
+    echo "│      After restarting, Terminal WakaTime will be ready     │"
+    echo "│      to track your coding activity automatically.          │"
+    echo "│                                                             │"
+    echo "└─────────────────────────────────────────────────────────────┘"
+    echo ""
 }
 
 # Run installer
