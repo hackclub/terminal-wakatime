@@ -23,7 +23,7 @@ func TestNewTracker(t *testing.T) {
 	}
 }
 
-func TestParseCommand(t *testing.T) {
+func TestParseCommandToSingleActivity(t *testing.T) {
 	cfg := &config.Config{
 		Project: "test-project",
 	}
@@ -33,51 +33,54 @@ func TestParseCommand(t *testing.T) {
 		name       string
 		command    string
 		workingDir string
-		expected   int // number of activities expected
+		expected   bool // whether activity should be created
 	}{
 		{
 			name:       "vim with file",
 			command:    "vim test.go",
 			workingDir: "/tmp",
-			expected:   1,
+			expected:   true,
 		},
 		{
 			name:       "git command",
 			command:    "git status",
 			workingDir: "/tmp",
-			expected:   1,
+			expected:   true,
 		},
 		{
 			name:       "cd command",
 			command:    "cd /home/user",
 			workingDir: "/tmp",
-			expected:   1,
+			expected:   true,
 		},
 		{
 			name:       "node command",
 			command:    "node app.js",
 			workingDir: "/tmp",
-			expected:   1,
+			expected:   true,
 		},
 		{
 			name:       "ssh command",
 			command:    "ssh user@example.com",
 			workingDir: "/tmp",
-			expected:   1,
+			expected:   true,
 		},
 		{
 			name:       "ls command",
 			command:    "ls -la",
 			workingDir: "/tmp",
-			expected:   0, // ls is not tracked
+			expected:   true, // now all commands create activities
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			activities := tracker.parseCommand(tt.command, tt.workingDir)
-			if len(activities) != tt.expected {
-				t.Errorf("Expected %d activities, got %d for command '%s'", tt.expected, len(activities), tt.command)
+			activity := tracker.parseCommandToSingleActivity(tt.command, tt.workingDir)
+			if tt.expected && activity == nil {
+				t.Errorf("Expected activity to be created for command '%s', got nil", tt.command)
+			}
+			if !tt.expected && activity != nil {
+				t.Errorf("Expected no activity for command '%s', got %+v", tt.command, activity)
 			}
 		})
 	}

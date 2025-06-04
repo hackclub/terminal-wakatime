@@ -108,14 +108,10 @@ func NewTracker(cfg *config.Config) *Tracker {
 }
 
 func (t *Tracker) TrackCommand(command string, workingDir string) error {
-	activities := t.parseCommand(command, workingDir)
-
-	for _, activity := range activities {
-		if err := t.sendActivity(activity); err != nil {
-			return err
-		}
+	activity := t.parseCommandToSingleActivity(command, workingDir)
+	if activity != nil {
+		return t.sendActivity(activity)
 	}
-
 	return nil
 }
 
@@ -137,38 +133,32 @@ func (t *Tracker) TrackFile(filePath string, isWrite bool) error {
 	return t.sendActivity(activity)
 }
 
-func (t *Tracker) parseCommand(command string, workingDir string) []*Activity {
-	var activities []*Activity
-
+func (t *Tracker) parseCommandToSingleActivity(command string, workingDir string) *Activity {
 	fields := strings.Fields(command)
 	if len(fields) == 0 {
-		return activities
+		return nil
 	}
 
 	cmdName := filepath.Base(fields[0])
 
 	// Check for editor commands
 	if t.isEditor(cmdName) {
-		activities = append(activities, t.handleEditorCommand(fields, workingDir)...)
-		t.showEditorSuggestion(cmdName)
-		return activities
+		return t.handleEditorCommandSingle(fields, workingDir)
 	}
 
 	// Check for git commands - handle with rich metadata
 	if cmdName == "git" {
-		activities = append(activities, t.handleGitCommand(fields, workingDir)...)
-		return activities
+		return t.handleGitCommandSingle(fields, workingDir)
 	}
 
 	// Check for build/test commands
 	if t.isBuildTestCommand(cmdName) {
-		activities = append(activities, t.handleBuildTestCommand(fields, workingDir)...)
-		return activities
+		return t.handleBuildTestCommandSingle(fields, workingDir)
 	}
 
 	// Check for coding apps
 	if category, isCodingApp := codingApps[cmdName]; isCodingApp {
-		activity := &Activity{
+		return &Activity{
 			Entity:     cmdName,
 			EntityType: ActivityApp,
 			Category:   category,
@@ -176,21 +166,17 @@ func (t *Tracker) parseCommand(command string, workingDir string) []*Activity {
 			Branch:     getGitBranch(workingDir),
 			Timestamp:  time.Now(),
 		}
-		activities = append(activities, activity)
-		return activities
 	}
 
 	// Check for remote connections
 	if domain := t.parseRemoteConnection(command); domain != "" {
-		activity := &Activity{
+		return &Activity{
 			Entity:     domain,
 			EntityType: ActivityDomain,
 			Category:   "coding",
 			Project:    t.detectProject(workingDir),
 			Timestamp:  time.Now(),
 		}
-		activities = append(activities, activity)
-		return activities
 	}
 
 	// Check for directory changes
@@ -200,7 +186,7 @@ func (t *Tracker) parseCommand(command string, workingDir string) []*Activity {
 			targetDir = filepath.Join(workingDir, targetDir)
 		}
 
-		activity := &Activity{
+		return &Activity{
 			Entity:     targetDir,
 			EntityType: ActivityFile,
 			Category:   "browsing",
@@ -208,10 +194,17 @@ func (t *Tracker) parseCommand(command string, workingDir string) []*Activity {
 			Branch:     getGitBranch(targetDir),
 			Timestamp:  time.Now(),
 		}
-		activities = append(activities, activity)
 	}
 
-	return activities
+	// For any other terminal command, create a general coding activity
+	return &Activity{
+		Entity:     cmdName,
+		EntityType: ActivityApp,
+		Category:   "coding",
+		Project:    t.detectProject(workingDir),
+		Branch:     getGitBranch(workingDir),
+		Timestamp:  time.Now(),
+	}
 }
 
 func (t *Tracker) isEditor(cmdName string) bool {
@@ -276,6 +269,72 @@ func (t *Tracker) handleEditorCommand(fields []string, workingDir string) []*Act
 	}
 
 	return activities
+}
+
+// handleEditorCommandSingle processes editor commands into a single activity
+func (t *Tracker) handleEditorCommandSingle(fields []string, workingDir string) *Activity {
+	cmdName := filepath.Base(fields[0])
+	t.showEditorSuggestion(cmdName)
+
+	totalLines := 0
+	var primaryFile string
+	var primaryLanguage string
+	fileCount := 0
+
+	// Look for file arguments and aggregate metadata
+	for i := 1; i < len(fields); i++ {
+		arg := fields[i]
+
+		// Skip flags
+		if strings.HasPrefix(arg, "-") {
+			continue
+		}
+
+		// Resolve file path
+		filePath := arg
+		if !filepath.IsAbs(filePath) {
+			filePath = filepath.Join(workingDir, filePath)
+		}
+
+		// Check if file exists or could be created
+		if _, err := os.Stat(filePath); err == nil || !os.IsNotExist(err) {
+			fileCount++
+			if primaryFile == "" {
+				primaryFile = filePath
+				primaryLanguage = detectLanguage(filePath)
+			}
+			if lines := getFileLines(filePath); lines != nil {
+				totalLines += *lines
+			}
+		}
+	}
+
+	// If we found files, create activity for the primary file with aggregated metadata
+	if fileCount > 0 {
+		return &Activity{
+			Entity:     primaryFile,
+			EntityType: ActivityFile,
+			Category:   "coding",
+			Language:   primaryLanguage,
+			Project:    t.detectProject(primaryFile),
+			Branch:     getGitBranch(filepath.Dir(primaryFile)),
+			IsWrite:    true,
+			Timestamp:  time.Now(),
+			Lines:      &totalLines,
+			LineNo:     getDefaultLineNumber(),
+			CursorPos:  getDefaultCursorPos(),
+		}
+	}
+
+	// If no files found, track the editor itself
+	return &Activity{
+		Entity:     cmdName,
+		EntityType: ActivityApp,
+		Category:   "coding",
+		Project:    t.detectProject(workingDir),
+		Branch:     getGitBranch(workingDir),
+		Timestamp:  time.Now(),
+	}
 }
 
 func (t *Tracker) parseRemoteConnection(command string) string {
@@ -640,6 +699,81 @@ func (t *Tracker) handleGitCommand(fields []string, workingDir string) []*Activi
 	return activities
 }
 
+// handleGitCommandSingle processes git commands into a single activity with aggregated metadata
+func (t *Tracker) handleGitCommandSingle(fields []string, workingDir string) *Activity {
+	if len(fields) < 2 {
+		return &Activity{
+			Entity:     "git",
+			EntityType: ActivityApp,
+			Category:   "coding",
+			Project:    t.detectProject(workingDir),
+			Branch:     getGitBranch(workingDir),
+			Timestamp:  time.Now(),
+		}
+	}
+
+	gitSubcommand := fields[1]
+
+	// Privacy-safe command name (just git + subcommand, no arguments that might contain secrets)
+	entity := "git " + gitSubcommand
+
+	switch gitSubcommand {
+	case "commit", "push", "merge", "rebase":
+		// For write operations, aggregate line changes from all affected files
+		changes, err := getGitChangedFiles(workingDir)
+		totalAdditions := 0
+		totalDeletions := 0
+		totalLines := 0
+
+		if err == nil && len(changes) > 0 {
+			for _, change := range changes {
+				totalAdditions += change.LineAdditions
+				totalDeletions += change.LineDeletions
+				filePath := filepath.Join(workingDir, change.FilePath)
+				if lines := getFileLines(filePath); lines != nil {
+					totalLines += *lines
+				}
+			}
+		}
+
+		return &Activity{
+			Entity:        entity,
+			EntityType:    ActivityApp,
+			Category:      "coding",
+			Project:       t.detectProject(workingDir),
+			Branch:        getGitBranch(workingDir),
+			IsWrite:       true,
+			Timestamp:     time.Now(),
+			Lines:         &totalLines,
+			LineAdditions: &totalAdditions,
+			LineDeletions: &totalDeletions,
+		}
+
+	case "status", "log", "diff", "show":
+		// Read operations
+		return &Activity{
+			Entity:     entity,
+			EntityType: ActivityApp,
+			Category:   "coding",
+			Project:    t.detectProject(workingDir),
+			Branch:     getGitBranch(workingDir),
+			IsWrite:    false,
+			Timestamp:  time.Now(),
+		}
+
+	default:
+		// Generic git command
+		return &Activity{
+			Entity:     entity,
+			EntityType: ActivityApp,
+			Category:   "coding",
+			Project:    t.detectProject(workingDir),
+			Branch:     getGitBranch(workingDir),
+			Timestamp:  time.Now(),
+		}
+	}
+}
+
 // isBuildTestCommand checks if command is a build/test operation
 func (t *Tracker) isBuildTestCommand(cmdName string) bool {
 	buildTestCommands := []string{
@@ -699,6 +833,46 @@ func (t *Tracker) handleBuildTestCommand(fields []string, workingDir string) []*
 	return activities
 }
 
+// handleBuildTestCommandSingle processes build/test commands into a single activity
+func (t *Tracker) handleBuildTestCommandSingle(fields []string, workingDir string) *Activity {
+	if len(fields) == 0 {
+		return nil
+	}
+
+	cmdName := fields[0]
+	subcommand := ""
+	if len(fields) > 1 {
+		subcommand = fields[1]
+	}
+
+	// Privacy-safe command name (just command + subcommand, no args that might contain secrets)
+	entity := cmdName
+	if subcommand != "" {
+		entity = cmdName + " " + subcommand
+	}
+
+	// Determine category based on subcommand
+	category := "coding"
+	if isTestCommand(subcommand) {
+		category = "debugging"
+	} else if isBuildCommand(subcommand) {
+		category = "building"
+	}
+
+	// Try to detect language from project context
+	language := t.detectProjectLanguage(workingDir)
+
+	return &Activity{
+		Entity:     entity,
+		EntityType: ActivityApp,
+		Category:   category,
+		Language:   language,
+		Project:    t.detectProject(workingDir),
+		Branch:     getGitBranch(workingDir),
+		Timestamp:  time.Now(),
+	}
+}
+
 // isTestCommand checks if subcommand is a test operation
 func isTestCommand(subcommand string) bool {
 	testCommands := []string{"test", "check", "verify", "spec", "jest", "mocha", "pytest"}
@@ -725,14 +899,14 @@ func isBuildCommand(subcommand string) bool {
 func (t *Tracker) detectProjectLanguage(workingDir string) string {
 	// Check for language-specific project files
 	languageFiles := map[string]string{
-		"go.mod":        "Go",
-		"package.json":  "JavaScript",
-		"Cargo.toml":    "Rust",
-		"pom.xml":       "Java",
+		"go.mod":           "Go",
+		"package.json":     "JavaScript",
+		"Cargo.toml":       "Rust",
+		"pom.xml":          "Java",
 		"requirements.txt": "Python",
-		"setup.py":      "Python",
-		"Gemfile":       "Ruby",
-		"composer.json": "PHP",
+		"setup.py":         "Python",
+		"Gemfile":          "Ruby",
+		"composer.json":    "PHP",
 	}
 
 	for file, language := range languageFiles {
