@@ -5,7 +5,7 @@ Track your time in bash, zsh, and fish with WakaTime! Better alternative to the 
 ## Quick Setup (30 seconds)
 
 ```bash
-curl -fsSL http://hack.club/terminal-wakatime.sh | $(basename "$SHELL")
+curl -fsSL http://hack.club/terminal-wakatime.sh | bash
 ```
 
 This installs `terminal-wakatime` to `~/.wakatime/terminal-wakatime` and adds `eval "$(terminal-wakatime init)"` to your `~/.bashrc`, `~/.zshrc`, or `~/.config/fish/config.fish`.
@@ -82,7 +82,7 @@ Today's Coding Time: 6h 45m
 ### Quick Install (Recommended)
 
 ```bash
-curl -fsSL http://hack.club/tw.sh | $(basename "$SHELL")
+curl -fsSL http://hack.club/tw.sh | bash
 ```
 
 ### Manual Install
