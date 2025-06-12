@@ -27,7 +27,7 @@ mem.prof
 # Runtime state files
 pkg/monitor/last_update_check
 pkg/updater/last_update_check
-pkg/updater/update_info  
+pkg/updater/update_info
 pkg/updater/terminal-wakatime.new
 
 # Dependency directories (remove the comment below to include it)
@@ -51,3 +51,6 @@ go.work
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# nix output folder
+result

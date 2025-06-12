@@ -96,9 +96,38 @@ eval "$(terminal-wakatime init)"
 
 ### Package Managers
 
+For all of your favorite package managers don't forget to activate the packge with the following in your shell config:
+
+```bash
+eval "$(terminal-wakatime init)"
+```
+
+## Go
+
 ```bash
 # Go
 go install github.com/hackclub/terminal-wakatime/cmd/terminal-wakatime@latest
+```
+
+### Nix
+
+```bash
+# Direct installation with flakes enabled
+nix profile install github:hackclub/terminal-wakatime
+```
+
+For use in your own flake:
+
+```nix
+# In your flake.nix
+{
+  inputs.terminal-wakatime.url = "github:hackclub/terminal-wakatime";
+  
+  outputs = { self, nixpkgs, terminal-wakatime, ... }: {
+    # Access the package as:
+    # terminal-wakatime.packages.${system}.default
+  };
+}
 ```
 
 ## Configuration
