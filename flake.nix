@@ -21,7 +21,7 @@
       packages = forAllSystems ({ pkgs }: {
         default = pkgs.buildGoModule {
           pname = "terminal-wakatime";
-          version = "1.1.5";
+          version = "1.1.6";
           subPackages = [ "cmd/terminal-wakatime" ];
           src = self;
           vendorHash = "sha256-fchZVBY43ccu6nbWn572Qzfgeq4uIwpLf99lOuJCO44=";
