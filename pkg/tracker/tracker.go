@@ -57,7 +57,7 @@ var (
 		"cursor":  regexp.MustCompile(`\bcursor\b`),
 		"sublime": regexp.MustCompile(`\b(subl|sublime_text)\b`),
 		"atom":    regexp.MustCompile(`\batom\b`),
-		"idea":    regexp.MustCompile(`\b(idea|intellij|pycharm|webstorm)\b`),
+		"idea":    regexp.MustCompile(`\b(idea|intellij|pycharm|webstorm|clion|goland|rider|phpstorm|rubymine|dataspell|datagrip)\b`),
 	}
 
 	// App patterns for coding tools
