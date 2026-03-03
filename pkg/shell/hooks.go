@@ -11,9 +11,10 @@ import (
 type Shell string
 
 const (
-	Bash Shell = "bash"
-	Zsh  Shell = "zsh"
-	Fish Shell = "fish"
+	Bash       Shell = "bash"
+	Zsh        Shell = "zsh"
+	Fish       Shell = "fish"
+	PowerShell Shell = "powershell"
 )
 
 type Integration struct {
@@ -57,6 +58,8 @@ func NewIntegrationForShell(binPath, shellName string) *Integration {
 		shell = Zsh
 	case "bash":
 		shell = Bash
+	case "powershell", "pwsh":
+		shell = PowerShell
 	default:
 		shell = Bash // Default fallback
 	}
@@ -79,6 +82,8 @@ func NewIntegrationForShellWithConfig(binPath, shellName string, minCommandTimeS
 		shell = Zsh
 	case "bash":
 		shell = Bash
+	case "powershell", "pwsh":
+		shell = PowerShell
 	default:
 		shell = Bash // Default fallback
 	}
@@ -111,6 +116,23 @@ func detectShell() Shell {
 	// Check for shell-specific environment variables first
 	// These are more reliable than $SHELL when shells are nested
 
+	// Explicit override for child processes spawned from shell hooks
+	switch strings.ToLower(os.Getenv("TERMINAL_WAKATIME_SHELL")) {
+	case "powershell", "pwsh":
+		return PowerShell
+	case "fish":
+		return Fish
+	case "zsh":
+		return Zsh
+	case "bash":
+		return Bash
+	}
+
+	// PowerShell exposes PSModulePath and often POWERSHELL_DISTRIBUTION_CHANNEL
+	if os.Getenv("PSModulePath") != "" || os.Getenv("POWERSHELL_DISTRIBUTION_CHANNEL") != "" {
+		return PowerShell
+	}
+
 	// For zsh and bash, check version environment variables
 	zshVersion := os.Getenv("ZSH_VERSION")
 	if zshVersion != "" {
@@ -142,6 +164,8 @@ func detectShell() Shell {
 		return Fish
 	case "bash":
 		return Bash
+	case "powershell", "powershell.exe", "pwsh", "pwsh.exe":
+		return PowerShell
 	default:
 		return Bash // Default to bash-compatible
 	}
@@ -155,9 +179,15 @@ func (i *Integration) GenerateHooks() string {
 		return i.generateZshHooks()
 	case Fish:
 		return i.generateFishHooks()
+	case PowerShell:
+		return i.generatePowerShellHooks()
 	default:
 		return i.generateBashHooks()
 	}
+}
+
+func escapePowerShellSingleQuoted(input string) string {
+	return strings.ReplaceAll(input, "'", "''")
 }
 
 func (i *Integration) generateBashHooks() string {
@@ -287,6 +317,57 @@ function __terminal_wakatime_postexec --on-event fish_postexec
 end`, i.minCommandTime, i.binPath)
 }
 
+func (i *Integration) generatePowerShellHooks() string {
+	escapedPath := escapePowerShellSingleQuoted(i.binPath)
+
+	return fmt.Sprintf(`
+if (-not $env:TERMINAL_WAKATIME_SHELL) {
+	$env:TERMINAL_WAKATIME_SHELL = 'powershell'
+}
+
+if (-not (Get-Variable -Scope Global -Name __TERMINAL_WAKATIME_PROMPT_ORIGINAL -ErrorAction SilentlyContinue)) {
+	$global:__TERMINAL_WAKATIME_PROMPT_ORIGINAL = $function:prompt
+}
+
+function __terminal_wakatime_precmd {
+	if (Get-Variable -Scope Global -Name __TERMINAL_WAKATIME_COMMAND -ErrorAction SilentlyContinue) {
+		$endTime = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
+		$duration = $endTime - $global:__TERMINAL_WAKATIME_START_TIME
+		$command = $global:__TERMINAL_WAKATIME_COMMAND
+		$pwd = $global:__TERMINAL_WAKATIME_PWD
+
+		Remove-Variable __TERMINAL_WAKATIME_COMMAND -Scope Global -ErrorAction SilentlyContinue
+		Remove-Variable __TERMINAL_WAKATIME_START_TIME -Scope Global -ErrorAction SilentlyContinue
+		Remove-Variable __TERMINAL_WAKATIME_PWD -Scope Global -ErrorAction SilentlyContinue
+
+		if ($duration -ge %d) {
+			Start-Process -FilePath '%s' -ArgumentList @('track', '--command', $command, '--duration', $duration.ToString(), '--pwd', $pwd) -WindowStyle Hidden
+		}
+	}
+}
+
+if (Get-Command Set-PSReadLineOption -ErrorAction SilentlyContinue) {
+	Set-PSReadLineOption -CommandValidationHandler {
+		param([System.Management.Automation.Language.CommandAst] $commandAst)
+		if ($null -ne $commandAst) {
+			$global:__TERMINAL_WAKATIME_COMMAND = $commandAst.Extent.Text
+			$global:__TERMINAL_WAKATIME_START_TIME = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
+			$global:__TERMINAL_WAKATIME_PWD = (Get-Location).Path
+		}
+	}
+}
+
+function global:prompt {
+	__terminal_wakatime_precmd
+	if ($global:__TERMINAL_WAKATIME_PROMPT_ORIGINAL) {
+		& $global:__TERMINAL_WAKATIME_PROMPT_ORIGINAL
+	} else {
+		"PS $($executionContext.SessionState.Path.CurrentLocation)$('>' * ($nestedPromptLevel + 1)) "
+	}
+}
+`, i.minCommandTime, escapedPath)
+}
+
 func (i *Integration) GetShellName() string {
 	return string(i.shell)
 }
@@ -308,6 +389,11 @@ func (i *Integration) GetConfigFileRecommendations() []string {
 		return []string{
 			"~/.config/fish/config.fish",
 		}
+	case PowerShell:
+		return []string{
+			"~/.config/powershell/Microsoft.PowerShell_profile.ps1",
+			"~/Documents/PowerShell/Microsoft.PowerShell_profile.ps1",
+		}
 	default:
 		return []string{"~/.bashrc"}
 	}
@@ -317,6 +403,8 @@ func (i *Integration) GenerateInstallCommand() string {
 	switch i.shell {
 	case Fish:
 		return fmt.Sprintf(`echo 'eval ("%s" init)' >> ~/.config/fish/config.fish`, i.binPath)
+	case PowerShell:
+		return fmt.Sprintf(`echo '%s init powershell | Invoke-Expression' >> ~/.config/powershell/Microsoft.PowerShell_profile.ps1`, i.binPath)
 	default:
 		configFile := "~/.bashrc"
 		if i.shell == Zsh {
@@ -386,6 +474,8 @@ func GetShellVersion(shell Shell) string {
 		return getZshVersion()
 	case Fish:
 		return getFishVersion()
+	case PowerShell:
+		return getPowerShellVersion()
 	default:
 		return "unknown"
 	}
@@ -460,6 +550,22 @@ func getFishVersion() string {
 			if len(words) >= 3 {
 				return words[2]
 			}
+		}
+	}
+
+	return "unknown"
+}
+
+func getPowerShellVersion() string {
+	if cmd := exec.Command("pwsh", "-NoProfile", "-Command", "$PSVersionTable.PSVersion.ToString()"); cmd != nil {
+		if output, err := cmd.Output(); err == nil {
+			return strings.TrimSpace(string(output))
+		}
+	}
+
+	if cmd := exec.Command("powershell", "-NoProfile", "-Command", "$PSVersionTable.PSVersion.ToString()"); cmd != nil {
+		if output, err := cmd.Output(); err == nil {
+			return strings.TrimSpace(string(output))
 		}
 	}
 

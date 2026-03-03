@@ -626,6 +626,11 @@ func TestShellHookGeneration(t *testing.T) {
 			envVars:      map[string]string{"FISH_VERSION": "3.0", "SHELL": "/usr/bin/fish"},
 			expectedFunc: []string{"__terminal_wakatime_preexec", "--on-event fish_preexec"},
 		},
+		{
+			shellName:    "powershell",
+			envVars:      map[string]string{"PSModulePath": "C:/Program Files/PowerShell/Modules", "SHELL": ""},
+			expectedFunc: []string{"__terminal_wakatime_precmd", "Set-PSReadLineOption", "Start-Process"},
+		},
 	}
 
 	for _, tt := range tests {

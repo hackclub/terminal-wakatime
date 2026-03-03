@@ -1,6 +1,6 @@
 # `terminal-wakatime`
 
-Track your time in bash, zsh, and fish with WakaTime! Better alternative to the WakaTime desktop app. Built by [@zachlatta](https://github.com/zachlatta).
+Track your time in bash, zsh, fish, and PowerShell with WakaTime! Better alternative to the WakaTime desktop app. Built by [@zachlatta](https://github.com/zachlatta).
 
 ## Quick Setup (30 seconds)
 
@@ -8,9 +8,15 @@ Track your time in bash, zsh, and fish with WakaTime! Better alternative to the 
 curl -fsSL http://hack.club/terminal-wakatime.sh | bash
 ```
 
-This installs `terminal-wakatime` to `~/.wakatime/terminal-wakatime` and adds `eval "$(terminal-wakatime init)"` to your `~/.bashrc`, `~/.zshrc`, or `~/.config/fish/config.fish`.
+PowerShell:
 
-That's it. Your terminal work in **bash, zsh, and fish** now gets properly tracked in WakaTime with correct project detection.
+```powershell
+irm https://hack.club/terminal-wakatime.ps1 | iex
+```
+
+This installs `terminal-wakatime` to `~/.wakatime/terminal-wakatime` and adds shell init to your config (`~/.bashrc`, `~/.zshrc`, `~/.config/fish/config.fish`, or PowerShell profile).
+
+That's it. Your terminal work in **bash, zsh, fish, and PowerShell** now gets properly tracked in WakaTime with correct project detection.
 
 ## The Problem with WakaTime Desktop App
 
@@ -81,8 +87,16 @@ Today's Coding Time: 6h 45m
 
 ### Quick Install (Recommended)
 
+For Linux/MacOS (Bash):
+
 ```bash
 curl -fsSL http://hack.club/tw.sh | bash
+```
+
+For Windows (PowerShell):
+
+```powershell
+irm https://raw.githubusercontent.com/hackclub/terminal-wakatime/main/install.ps1 | iex
 ```
 
 ### Manual Install
@@ -92,6 +106,18 @@ Download from [releases](https://github.com/hackclub/terminal-wakatime/releases)
 ```bash
 # Add to your shell config (~/.bashrc, ~/.zshrc, etc.)
 eval "$(terminal-wakatime init)"
+```
+
+For PowerShell:
+
+```powershell
+terminal-wakatime init powershell | Invoke-Expression
+```
+
+You can also run the native PowerShell installer script directly:
+
+```powershell
+./install.ps1
 ```
 
 ### Package Managers
@@ -216,7 +242,7 @@ terminal-wakatime deps --reinstall
 
 **WakaTime Desktop App** only tracks window focus - it has no idea what you're actually doing in your terminal. When you're deep in a coding session doing `git commits`, `vim editing`, `npm test`, it just sees "Terminal app is open" with no context.
 
-**`terminal-wakatime`** hooks directly into your shell (Bash/Zsh/Fish) to track:
+**`terminal-wakatime`** hooks directly into your shell (Bash/Zsh/Fish/PowerShell) to track:
 
 - ✅ Actual commands and file editing
 - ✅ Correct project detection from your current directory  
