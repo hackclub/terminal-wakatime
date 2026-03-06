@@ -9,6 +9,7 @@ $ErrorActionPreference = 'Stop'
 $Repo = 'hackclub/terminal-wakatime'
 $BinaryBaseName = 'terminal-wakatime'
 $InstallDir = Join-Path $HOME '.wakatime'
+$ProfileMarker = '# terminal-wakatime setup'
 
 function Write-Info {
     param([string]$Message)
@@ -72,6 +73,60 @@ function Add-ToCurrentPath {
     }
 }
 
+function Test-ParseablePowerShell {
+    param([string]$ScriptText)
+
+    if ([string]::IsNullOrWhiteSpace($ScriptText)) {
+        return $false
+    }
+
+    try {
+        [ScriptBlock]::Create($ScriptText) | Out-Null
+        return $true
+    } catch {
+        return $false
+    }
+}
+
+function Get-SafeInitBlock {
+    return @"
+`$twBinary = Join-Path `$twInstallDir 'terminal-wakatime'
+if (`$IsWindows) { `$twBinary = "`$twBinary.exe" }
+if (Test-Path -LiteralPath `$twBinary) {
+    `$twHooks = & `$twBinary init powershell 2>`$null
+    `$twHooksText = [string]::Join([Environment]::NewLine, @(`$twHooks))
+    `$twCanParseHooks = `$false
+    if (-not [string]::IsNullOrWhiteSpace(`$twHooksText)) {
+        try {
+            [ScriptBlock]::Create(`$twHooksText) | Out-Null
+            `$twCanParseHooks = `$true
+        } catch {
+            `$twCanParseHooks = `$false
+        }
+    }
+    if (`$twCanParseHooks) {
+        Invoke-Expression `$twHooksText
+    }
+}
+"@
+}
+
+function Get-ProfileIntegrationBlock {
+    param([string]$InstallDirPath)
+
+    $safeInitBlock = Get-SafeInitBlock
+
+    return @"
+
+$ProfileMarker
+`$twInstallDir = '$InstallDirPath'
+if (-not ((`$env:PATH -split [IO.Path]::PathSeparator) -contains `$twInstallDir)) {
+    `$env:PATH = "`${twInstallDir}$([IO.Path]::PathSeparator)`$env:PATH"
+}
+$safeInitBlock
+"@
+}
+
 function Add-ProfileIntegration {
     $profilePath = $PROFILE.CurrentUserCurrentHost
     $profileDir = Split-Path -Parent $profilePath
@@ -85,67 +140,60 @@ function Add-ProfileIntegration {
     }
 
     $existing = Get-Content -LiteralPath $profilePath -Raw -ErrorAction SilentlyContinue
+    $updated = $existing
 
     # Migrate legacy invalid interpolation: "$twInstallDir:$env:PATH"
-    $legacyPathLine = '$env:PATH = "$twInstallDir:$env:PATH"'
-    $fixedPathLine = '$env:PATH = "${twInstallDir}$([IO.Path]::PathSeparator)$env:PATH"'
-    if ($existing -and $existing.Contains($legacyPathLine)) {
-        $existing = $existing.Replace($legacyPathLine, $fixedPathLine)
-        Set-Content -LiteralPath $profilePath -Value $existing
-        Write-Success "Updated legacy PATH line in profile: $profilePath"
-    }
+    $updated = $updated.Replace(
+        '$env:PATH = "$twInstallDir:$env:PATH"',
+        '$env:PATH = "${twInstallDir}$([IO.Path]::PathSeparator)$env:PATH"'
+    )
 
-    $legacyInitLine = 'terminal-wakatime init powershell | Invoke-Expression'
-    $safeInitBlock = @"
-`$twBinary = Join-Path `$twInstallDir 'terminal-wakatime'
-if (`$IsWindows) { `$twBinary = "`${twBinary}.exe" }
-if (Test-Path -LiteralPath `$twBinary) {
-    `$twHooks = & `$twBinary init powershell 2>`$null
-    `$twHooksText = [string]::Join([Environment]::NewLine, @(`$twHooks))
-    if (-not [string]::IsNullOrWhiteSpace(`$twHooksText)) {
-        Invoke-Expression `$twHooksText
+    # Migrate legacy one-line init and malformed binary name
+    $updated = $updated.Replace(
+        'terminal-wakatime init powershell | Invoke-Expression',
+        (Get-SafeInitBlock).Trim()
+    )
+    $updated = $updated.Replace(
+        "`$twBinary = Join-Path `$twInstallDir ''terminal-wakatime''",
+        "`$twBinary = Join-Path `$twInstallDir 'terminal-wakatime'"
+    )
+
+    # Migrate direct Invoke-Expression on hook text to parse-checked version
+    $legacyEvalSnippet = @'
+$twHooksText = [string]::Join([Environment]::NewLine, @($twHooks))
+if (-not [string]::IsNullOrWhiteSpace($twHooksText)) {
+    Invoke-Expression $twHooksText
+}
+'@
+    $guardedEvalSnippet = @'
+$twHooksText = [string]::Join([Environment]::NewLine, @($twHooks))
+$twCanParseHooks = $false
+if (-not [string]::IsNullOrWhiteSpace($twHooksText)) {
+    try {
+        [ScriptBlock]::Create($twHooksText) | Out-Null
+        $twCanParseHooks = $true
+    } catch {
+        $twCanParseHooks = $false
     }
 }
-"@
-    if ($existing -and $existing.Contains($legacyInitLine)) {
-        $existing = $existing.Replace($legacyInitLine, $safeInitBlock.Trim())
-        Set-Content -LiteralPath $profilePath -Value $existing
-        Write-Success "Updated legacy init line in profile: $profilePath"
+if ($twCanParseHooks) {
+    Invoke-Expression $twHooksText
+}
+'@
+    $updated = $updated.Replace($legacyEvalSnippet.Trim(), $guardedEvalSnippet.Trim())
+
+    if ($updated -ne $existing) {
+        Set-Content -LiteralPath $profilePath -Value $updated
+        Write-Success "Updated existing terminal-wakatime profile entries: $profilePath"
+        $existing = $updated
     }
 
-    $malformedBinaryLine = "`$twBinary = Join-Path `$twInstallDir ''terminal-wakatime''"
-    $fixedBinaryLine = "`$twBinary = Join-Path `$twInstallDir 'terminal-wakatime'"
-    if ($existing -and $existing.Contains($malformedBinaryLine)) {
-        $existing = $existing.Replace($malformedBinaryLine, $fixedBinaryLine)
-        Set-Content -LiteralPath $profilePath -Value $existing
-        Write-Success "Fixed malformed terminal-wakatime binary path in profile: $profilePath"
-    }
-
-    $existing = Get-Content -LiteralPath $profilePath -Raw -ErrorAction SilentlyContinue
     if ($existing -and $existing.Contains("`$twHooks = & `$twBinary init powershell")) {
         Write-WarningMsg "PowerShell profile already contains terminal-wakatime integration: $profilePath"
         return
     }
 
-    $profileBlock = @"
-
-# terminal-wakatime setup
-`$twInstallDir = '$InstallDir'
-if (-not ((`$env:PATH -split [IO.Path]::PathSeparator) -contains `$twInstallDir)) {
-    `$env:PATH = "`$twInstallDir$([IO.Path]::PathSeparator)`$env:PATH"
-}
-`$twBinary = Join-Path `$twInstallDir 'terminal-wakatime'
-if (`$IsWindows) { `$twBinary = "`${twBinary}.exe" }
-if (Test-Path -LiteralPath `$twBinary) {
-    `$twHooks = & `$twBinary init powershell 2>`$null
-    `$twHooksText = [string]::Join([Environment]::NewLine, @(`$twHooks))
-    if (-not [string]::IsNullOrWhiteSpace(`$twHooksText)) {
-        Invoke-Expression `$twHooksText
-    }
-}
-"@
-
-    Add-Content -LiteralPath $profilePath -Value $profileBlock
+    Add-Content -LiteralPath $profilePath -Value (Get-ProfileIntegrationBlock -InstallDirPath $InstallDir)
     Write-Success "Added terminal-wakatime integration to profile: $profilePath"
 }
 
@@ -185,8 +233,15 @@ try {
 
     if (Test-Path -LiteralPath $targetPath) {
         try {
-            & $targetPath init powershell | Invoke-Expression
-            Write-Success 'Initialized terminal-wakatime hooks for this session.'
+            $sessionHooks = & $targetPath init powershell 2>$null
+            $sessionHooksText = [string]::Join([Environment]::NewLine, @($sessionHooks))
+
+            if (Test-ParseablePowerShell $sessionHooksText) {
+                Invoke-Expression $sessionHooksText
+                Write-Success 'Initialized terminal-wakatime hooks for this session.'
+            } else {
+                Write-WarningMsg 'Binary returned empty or non-PowerShell hooks; skipping session initialization.'
+            }
         } catch {
             Write-WarningMsg "Installed successfully, but failed to initialize hooks in current session: $($_.Exception.Message)"
         }

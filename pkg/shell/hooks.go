@@ -128,11 +128,6 @@ func detectShell() Shell {
 		return Bash
 	}
 
-	// PowerShell exposes PSModulePath and often POWERSHELL_DISTRIBUTION_CHANNEL
-	if os.Getenv("PSModulePath") != "" || os.Getenv("POWERSHELL_DISTRIBUTION_CHANNEL") != "" {
-		return PowerShell
-	}
-
 	// For zsh and bash, check version environment variables
 	zshVersion := os.Getenv("ZSH_VERSION")
 	if zshVersion != "" {
@@ -152,23 +147,30 @@ func detectShell() Shell {
 
 	// Fallback to $SHELL environment variable
 	shell := os.Getenv("SHELL")
-	if shell == "" {
-		return Bash // Default fallback
+	if shell != "" {
+		base := filepath.Base(shell)
+		switch base {
+		case "zsh":
+			return Zsh
+		case "fish":
+			return Fish
+		case "bash":
+			return Bash
+		case "powershell", "powershell.exe", "pwsh", "pwsh.exe":
+			return PowerShell
+		default:
+			// Explicit SHELL was provided but is unknown/non-powershell.
+			return Bash // Default to bash-compatible
+		}
 	}
 
-	base := filepath.Base(shell)
-	switch base {
-	case "zsh":
-		return Zsh
-	case "fish":
-		return Fish
-	case "bash":
-		return Bash
-	case "powershell", "powershell.exe", "pwsh", "pwsh.exe":
+	// Some environments export PowerShell variables globally (e.g. CI),
+	// so only use them as fallback when direct shell signals are unavailable.
+	if os.Getenv("PSModulePath") != "" || os.Getenv("POWERSHELL_DISTRIBUTION_CHANNEL") != "" {
 		return PowerShell
-	default:
-		return Bash // Default to bash-compatible
 	}
+
+	return Bash // Default fallback
 }
 
 func (i *Integration) GenerateHooks() string {
@@ -341,7 +343,14 @@ function __terminal_wakatime_precmd {
 		Remove-Variable __TERMINAL_WAKATIME_PWD -Scope Global -ErrorAction SilentlyContinue
 
 		if ($duration -ge %d) {
-			Start-Process -FilePath '%s' -ArgumentList @('track', '--command', $command, '--duration', $duration.ToString(), '--pwd', $pwd) -WindowStyle Hidden
+			$startProcessParams = @{
+				FilePath = '%s'
+				ArgumentList = @('track', '--command', $command, '--duration', $duration.ToString(), '--pwd', $pwd)
+			}
+			if ($IsWindows) {
+				$startProcessParams['WindowStyle'] = 'Hidden'
+			}
+			Start-Process @startProcessParams | Out-Null
 		}
 	}
 }
@@ -404,7 +413,8 @@ func (i *Integration) GenerateInstallCommand() string {
 	case Fish:
 		return fmt.Sprintf(`echo 'eval ("%s" init)' >> ~/.config/fish/config.fish`, i.binPath)
 	case PowerShell:
-		return fmt.Sprintf(`echo '%s init powershell | Invoke-Expression' >> ~/.config/powershell/Microsoft.PowerShell_profile.ps1`, i.binPath)
+		escapedPath := escapePowerShellSingleQuoted(i.binPath)
+		return fmt.Sprintf(`echo '& ''%s'' init powershell | Invoke-Expression' >> ~/.config/powershell/Microsoft.PowerShell_profile.ps1`, escapedPath)
 	default:
 		configFile := "~/.bashrc"
 		if i.shell == Zsh {

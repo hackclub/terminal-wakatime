@@ -96,7 +96,7 @@ curl -fsSL http://hack.club/tw.sh | bash
 For Windows (PowerShell):
 
 ```powershell
-irm https://raw.githubusercontent.com/hackclub/terminal-wakatime/main/install.ps1 | iex
+irm https://hack.club/terminal-wakatime.ps1 | iex
 ```
 
 ### Manual Install
@@ -122,7 +122,7 @@ You can also run the native PowerShell installer script directly:
 
 ### Package Managers
 
-For all of your favorite package managers don't forget to activate the packge with the following in your shell config:
+For all of your favorite package managers don't forget to activate the package with the following in your shell config:
 
 ```bash
 eval "$(terminal-wakatime init)"

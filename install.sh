@@ -139,7 +139,9 @@ install_binary() {
 
 # Function to detect shell
 detect_shell() {
-    if [ -n "$ZSH_VERSION" ]; then
+    if [ -n "$PSModulePath" ] || [ -n "$POWERSHELL_DISTRIBUTION_CHANNEL" ]; then
+        echo "pwsh"
+    elif [ -n "$ZSH_VERSION" ]; then
         echo "zsh"
     elif [ -n "$BASH_VERSION" ]; then
         echo "bash"
@@ -147,7 +149,16 @@ detect_shell() {
         echo "fish"
     else
         # Fallback to $SHELL environment variable
-        basename "${SHELL:-bash}"
+        local shell_base
+        shell_base=$(basename "${SHELL:-bash}")
+        case "$shell_base" in
+            pwsh|pwsh.exe|powershell|powershell.exe)
+                echo "pwsh"
+                ;;
+            *)
+                echo "$shell_base"
+                ;;
+        esac
     fi
 }
 
@@ -167,6 +178,13 @@ get_shell_config() {
             ;;
         fish)
             echo "$HOME/.config/fish/config.fish"
+            ;;
+        pwsh|powershell)
+            if [ -n "$USERPROFILE" ] && [ "$HOME" != "$USERPROFILE" ]; then
+                echo "$USERPROFILE/Documents/PowerShell/Microsoft.PowerShell_profile.ps1"
+            else
+                echo "$HOME/.config/powershell/Microsoft.PowerShell_profile.ps1"
+            fi
             ;;
         *)
             echo "$HOME/.profile"
@@ -211,6 +229,12 @@ setup_shell_config() {
             fi
             echo "terminal-wakatime init fish | source" >> "$config_file"
             ;;
+        pwsh|powershell)
+            if [ "$needs_path" = "true" ]; then
+                echo '$env:PATH = "$HOME/.wakatime:$env:PATH"' >> "$config_file"
+            fi
+            echo "terminal-wakatime init powershell | Invoke-Expression" >> "$config_file"
+            ;;
         *)
             if [ "$needs_path" = "true" ]; then
                 echo 'export PATH="$HOME/.wakatime:$PATH"' >> "$config_file"
@@ -243,6 +267,13 @@ find_best_config() {
         fish)
             local configs=("$HOME/.config/fish/config.fish")
             ;;
+        pwsh|powershell)
+            if [ -n "$USERPROFILE" ] && [ "$HOME" != "$USERPROFILE" ]; then
+                local configs=("$USERPROFILE/Documents/PowerShell/Microsoft.PowerShell_profile.ps1")
+            else
+                local configs=("$HOME/.config/powershell/Microsoft.PowerShell_profile.ps1")
+            fi
+            ;;
     esac
     
     # Find the config file with the most content
@@ -268,6 +299,13 @@ find_best_config() {
             fish)
                 best_file="$HOME/.config/fish/config.fish"
                 ;;
+            pwsh|powershell)
+                if [ -n "$USERPROFILE" ] && [ "$HOME" != "$USERPROFILE" ]; then
+                    best_file="$USERPROFILE/Documents/PowerShell/Microsoft.PowerShell_profile.ps1"
+                else
+                    best_file="$HOME/.config/powershell/Microsoft.PowerShell_profile.ps1"
+                fi
+                ;;
         esac
     fi
     
@@ -279,7 +317,7 @@ setup_shell_integration() {
     print_status "Setting up shell integration for all supported shells..."
     
     local configured_count=0
-    local shell_types=("bash" "zsh" "fish")
+    local shell_types=("bash" "zsh" "fish" "pwsh")
     local needs_path="false"
     
     # Check if we installed to ~/.wakatime (not system-wide)
@@ -302,6 +340,10 @@ setup_shell_integration() {
             # Always configure primary shell configs even if they don't exist
             case "$config_file" in
                 "$HOME/.bashrc"|"$HOME/.zshrc"|"$HOME/.config/fish/config.fish")
+                    should_configure=true
+                    print_status "Will create $shell_type config: $config_file"
+                    ;;
+                "$HOME/.config/powershell/Microsoft.PowerShell_profile.ps1"|"$USERPROFILE/Documents/PowerShell/Microsoft.PowerShell_profile.ps1")
                     should_configure=true
                     print_status "Will create $shell_type config: $config_file"
                     ;;

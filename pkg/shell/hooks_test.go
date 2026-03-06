@@ -27,9 +27,26 @@ func TestDetectShell(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.shellPath, func(t *testing.T) {
-			// Save original SHELL env var
+			// Save original env vars that affect shell detection
 			originalShell := os.Getenv("SHELL")
+			originalPSModulePath := os.Getenv("PSModulePath")
+			originalPowerShellChannel := os.Getenv("POWERSHELL_DISTRIBUTION_CHANNEL")
+			originalOverride := os.Getenv("TERMINAL_WAKATIME_SHELL")
+			originalBashVersion := os.Getenv("BASH_VERSION")
+			originalZshVersion := os.Getenv("ZSH_VERSION")
 			defer os.Setenv("SHELL", originalShell)
+			defer os.Setenv("PSModulePath", originalPSModulePath)
+			defer os.Setenv("POWERSHELL_DISTRIBUTION_CHANNEL", originalPowerShellChannel)
+			defer os.Setenv("TERMINAL_WAKATIME_SHELL", originalOverride)
+			defer os.Setenv("BASH_VERSION", originalBashVersion)
+			defer os.Setenv("ZSH_VERSION", originalZshVersion)
+
+			// Clear external env influence so this test only validates SHELL path behavior
+			os.Setenv("PSModulePath", "")
+			os.Setenv("POWERSHELL_DISTRIBUTION_CHANNEL", "")
+			os.Setenv("TERMINAL_WAKATIME_SHELL", "")
+			os.Setenv("BASH_VERSION", "")
+			os.Setenv("ZSH_VERSION", "")
 
 			os.Setenv("SHELL", tt.shellPath)
 			result := detectShell()
@@ -64,6 +81,26 @@ func TestDetectShellPowerShellEnv(t *testing.T) {
 
 	if result := detectShell(); result != PowerShell {
 		t.Errorf("Expected PowerShell when PSModulePath is set, got %s", result)
+	}
+}
+
+func TestDetectShellPSModulePathDoesNotOverrideBashShell(t *testing.T) {
+	originalPSModulePath := os.Getenv("PSModulePath")
+	originalShell := os.Getenv("SHELL")
+	originalBashVersion := os.Getenv("BASH_VERSION")
+	originalZshVersion := os.Getenv("ZSH_VERSION")
+	defer os.Setenv("PSModulePath", originalPSModulePath)
+	defer os.Setenv("SHELL", originalShell)
+	defer os.Setenv("BASH_VERSION", originalBashVersion)
+	defer os.Setenv("ZSH_VERSION", originalZshVersion)
+
+	os.Setenv("PSModulePath", "C:/Program Files/PowerShell/Modules")
+	os.Setenv("SHELL", "/bin/bash")
+	os.Setenv("BASH_VERSION", "")
+	os.Setenv("ZSH_VERSION", "")
+
+	if result := detectShell(); result != Bash {
+		t.Errorf("Expected Bash when SHELL is bash even with PSModulePath set, got %s", result)
 	}
 }
 
@@ -340,7 +377,7 @@ func TestGenerateInstallCommand(t *testing.T) {
 		{
 			shell: PowerShell,
 			contains: []string{
-				`/usr/local/bin/terminal-wakatime init powershell | Invoke-Expression`,
+				`& ''/usr/local/bin/terminal-wakatime'' init powershell | Invoke-Expression`,
 				"~/.config/powershell/Microsoft.PowerShell_profile.ps1",
 			},
 		},
