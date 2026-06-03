@@ -149,6 +149,12 @@ func TestBinaryCommands(t *testing.T) {
 			contains: []string{"__terminal_wakatime_preexec"},
 		},
 		{
+			name:     "init powershell command",
+			args:     []string{"init", "powershell"},
+			wantErr:  false,
+			contains: []string{"__terminal_wakatime_precmd", "Set-PSReadLineOption"},
+		},
+		{
 			name:     "config help",
 			args:     []string{"config", "--help"},
 			wantErr:  false,

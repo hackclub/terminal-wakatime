@@ -75,6 +75,7 @@ func initCmd() *cobra.Command {
 
 For Bash/Zsh: eval "$(terminal-wakatime init)"
 For Fish: terminal-wakatime init fish | source
+For PowerShell: terminal-wakatime init powershell | Invoke-Expression
 
 Optionally specify the shell type: terminal-wakatime init fish`,
 		RunE: func(cmd *cobra.Command, args []string) error {
