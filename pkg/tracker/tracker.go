@@ -151,6 +151,17 @@ var (
 		regexp.MustCompile(`sftp\s+(?:.*@)?([^@\s]+)`),
 		regexp.MustCompile(`telnet\s+([^\s]+)`),
 	}
+
+	// Interpreter commands that take file arguments
+	interpreterCommands = map[string]bool{
+		"node":    true,
+		"python":  true,
+		"python3": true,
+		"ruby":    true,
+		"php":     true,
+		"perl":    true,
+		"lua":     true,
+	}
 )
 
 func NewTracker(cfg *config.Config) *Tracker {
@@ -212,6 +223,10 @@ func (t *Tracker) parseCommandToSingleActivity(command string, workingDir string
 
 	// Check for coding apps
 	if category, isCodingApp := codingApps[cmdName]; isCodingApp {
+		// For interpreter commands, try to detect file arguments
+		if interpreterCommands[cmdName] {
+			return t.handleInterpreterCommandSingle(fields, workingDir, category)
+		}
 		return &Activity{
 			Entity:     cmdName,
 			EntityType: ActivityApp,
@@ -385,6 +400,65 @@ func (t *Tracker) handleEditorCommandSingle(fields []string, workingDir string) 
 		Entity:     cmdName,
 		EntityType: ActivityApp,
 		Category:   "coding",
+		Project:    t.detectProject(workingDir),
+		Branch:     getGitBranch(workingDir),
+		Timestamp:  time.Now(),
+	}
+}
+
+// handleInterpreterCommandSingle processes interpreter commands with file arguments
+func (t *Tracker) handleInterpreterCommandSingle(fields []string, workingDir string, category string) *Activity {
+	cmdName := filepath.Base(fields[0])
+
+	// Look for file arguments that match known extensions
+	for i := 1; i < len(fields); i++ {
+		arg := fields[i]
+
+		// Skip flags
+		if strings.HasPrefix(arg, "-") {
+			continue
+		}
+
+		// Check if argument looks like a file (contains a dot or is a glob pattern)
+		if strings.Contains(arg, ".") || strings.ContainsAny(arg, "*?") {
+			// Resolve file path
+			filePath := arg
+			if !filepath.IsAbs(filePath) {
+				filePath = filepath.Join(workingDir, filePath)
+			}
+
+			// For glob patterns, try to find matching files
+			if strings.ContainsAny(arg, "*?") {
+				matches, _ := filepath.Glob(filePath)
+				if len(matches) > 0 {
+					filePath = matches[0]
+				}
+			}
+
+			// Detect language from file
+			language := detectLanguage(filePath)
+			if language != "" {
+				return &Activity{
+					Entity:     filePath,
+					EntityType: ActivityFile,
+					Category:   category,
+					Language:   language,
+					Project:    t.detectProject(filePath),
+					Branch:     getGitBranch(filepath.Dir(filePath)),
+					Timestamp:  time.Now(),
+					Lines:      getFileLines(filePath),
+					LineNo:     getDefaultLineNumber(),
+					CursorPos:  getDefaultCursorPos(),
+				}
+			}
+		}
+	}
+
+	// No file argument found, track as app
+	return &Activity{
+		Entity:     cmdName,
+		EntityType: ActivityApp,
+		Category:   category,
 		Project:    t.detectProject(workingDir),
 		Branch:     getGitBranch(workingDir),
 		Timestamp:  time.Now(),
@@ -838,6 +912,7 @@ func (t *Tracker) isBuildTestCommand(cmdName string) bool {
 		"tsc", "webpack", "vite", "rollup",
 		"docker", "docker-compose",
 		"terraform", "ansible",
+		"nix",
 	}
 
 	for _, cmd := range buildTestCommands {
