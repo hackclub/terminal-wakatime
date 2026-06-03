@@ -63,6 +63,7 @@ var (
 		"micro":   regexp.MustCompile(`\bmicro\b`),
 		"kate":    regexp.MustCompile(`\bkate\b`),
 		"gedit":   regexp.MustCompile(`\bgedit\b`),
+		"crush":   regexp.MustCompile(`\bcrush\b`),
 	}
 
 	// App patterns for coding tools
