@@ -871,14 +871,10 @@ func (t *Tracker) handleBuildTestCommand(fields []string, workingDir string) []*
 		category = "building"
 	}
 
-	// Try to detect language from project context
-	language := t.detectProjectLanguage(workingDir)
-
 	activity := &Activity{
 		Entity:     cmdName + " " + subcommand,
 		EntityType: ActivityApp,
 		Category:   category,
-		Language:   language,
 		Project:    t.detectProject(workingDir),
 		Branch:     getGitBranch(workingDir),
 		Timestamp:  time.Now(),
@@ -914,14 +910,10 @@ func (t *Tracker) handleBuildTestCommandSingle(fields []string, workingDir strin
 		category = "building"
 	}
 
-	// Try to detect language from project context
-	language := t.detectProjectLanguage(workingDir)
-
 	return &Activity{
 		Entity:     entity,
 		EntityType: ActivityApp,
 		Category:   category,
-		Language:   language,
 		Project:    t.detectProject(workingDir),
 		Branch:     getGitBranch(workingDir),
 		Timestamp:  time.Now(),
@@ -948,29 +940,6 @@ func isBuildCommand(subcommand string) bool {
 		}
 	}
 	return false
-}
-
-// detectProjectLanguage detects primary language from project files
-func (t *Tracker) detectProjectLanguage(workingDir string) string {
-	// Check for language-specific project files
-	languageFiles := map[string]string{
-		"go.mod":           "Go",
-		"package.json":     "JavaScript",
-		"Cargo.toml":       "Rust",
-		"pom.xml":          "Java",
-		"requirements.txt": "Python",
-		"setup.py":         "Python",
-		"Gemfile":          "Ruby",
-		"composer.json":    "PHP",
-	}
-
-	for file, language := range languageFiles {
-		if _, err := os.Stat(filepath.Join(workingDir, file)); err == nil {
-			return language
-		}
-	}
-
-	return ""
 }
 
 // getDefaultLineNumber returns a default line number for file operations

@@ -686,6 +686,16 @@ func TestCommandParsing(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			name:    "sub-second command (duration 0)",
+			args:    []string{"track", "--command", "ls", "--duration", "0", "--pwd", "/tmp"},
+			wantErr: false,
+		},
+		{
+			name:    "negative duration",
+			args:    []string{"track", "--command", "ls", "--duration", "-1", "--pwd", "/tmp"},
+			wantErr: true,
+		},
+		{
 			name:    "missing duration",
 			args:    []string{"track", "--command", "test", "--pwd", "/"},
 			wantErr: true,

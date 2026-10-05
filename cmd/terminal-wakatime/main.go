@@ -283,8 +283,13 @@ func runTrackCommand(cmd *cobra.Command, args []string) error {
 	if command == "" {
 		return fmt.Errorf("command is required (use --command flag)")
 	}
-	if duration <= 0 {
-		return fmt.Errorf("duration must be greater than 0 (use --duration flag)")
+	// Shell hooks measure in whole seconds, so most quick commands (ls, cat, cd)
+	// report a duration of 0. They must still be tracked.
+	if !cmd.Flags().Changed("duration") && len(args) == 0 {
+		return fmt.Errorf("duration is required (use --duration flag)")
+	}
+	if duration < 0 {
+		return fmt.Errorf("duration must not be negative (use --duration flag)")
 	}
 	if pwd == "" {
 		return fmt.Errorf("working directory is required (use --pwd flag)")
