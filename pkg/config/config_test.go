@@ -189,3 +189,37 @@ func TestConfigExcludeInclude(t *testing.T) {
 		t.Errorf("Expected include patterns [*.go, *.js], got %v", cfg2.Include)
 	}
 }
+
+func TestConfigLoadTrimsAPIURLWhitespace(t *testing.T) {
+	tempDir := t.TempDir()
+	originalHome := os.Getenv("HOME")
+	defer os.Setenv("HOME", originalHome)
+	os.Setenv("HOME", tempDir)
+
+	cfgPath := filepath.Join(tempDir, DefaultConfigFile)
+	body := "[settings]\napi_key = test-key\napi_url = https://hackatime.hackclub.com/api/hackatime/v1          \n"
+	if err := os.WriteFile(cfgPath, []byte(body), 0644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	cfg, err := NewConfig()
+	if err != nil {
+		t.Fatalf("NewConfig: %v", err)
+	}
+	want := "https://hackatime.hackclub.com/api/hackatime/v1"
+	if cfg.APIUrl != want {
+		t.Fatalf("APIUrl = %q, want trimmed %q", cfg.APIUrl, want)
+	}
+
+	// Save must persist the trimmed URL so wakatime-cli does not 404.
+	if err := cfg.Save(); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+	cfg2, err := NewConfig()
+	if err != nil {
+		t.Fatalf("reload: %v", err)
+	}
+	if cfg2.APIUrl != want {
+		t.Fatalf("reloaded APIUrl = %q, want %q", cfg2.APIUrl, want)
+	}
+}
