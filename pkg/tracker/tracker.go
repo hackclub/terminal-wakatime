@@ -189,7 +189,7 @@ func (t *Tracker) TrackFile(filePath string, isWrite bool) error {
 }
 
 func (t *Tracker) parseCommandToSingleActivity(command string, workingDir string) *Activity {
-	fields := strings.Fields(command)
+	fields := commandFields(command)
 	if len(fields) == 0 {
 		return nil
 	}
@@ -224,7 +224,7 @@ func (t *Tracker) parseCommandToSingleActivity(command string, workingDir string
 	}
 
 	// Check for remote connections
-	if domain := t.parseRemoteConnection(command); domain != "" {
+	if domain := t.parseRemoteConnection(strings.Join(fields, " ")); domain != "" {
 		return &Activity{
 			Entity:     domain,
 			EntityType: ActivityDomain,
@@ -260,6 +260,36 @@ func (t *Tracker) parseCommandToSingleActivity(command string, workingDir string
 		Branch:     getGitBranch(workingDir),
 		Timestamp:  time.Now(),
 	}
+}
+
+func commandFields(command string) []string {
+	fields := strings.Fields(command)
+	for len(fields) > 0 && isEnvironmentAssignment(fields[0]) {
+		fields = fields[1:]
+	}
+	return fields
+}
+
+func isEnvironmentAssignment(field string) bool {
+	separator := strings.IndexByte(field, '=')
+	if separator <= 0 {
+		return false
+	}
+
+	name := field[:separator]
+	if (name[0] < 'A' || name[0] > 'Z') && (name[0] < 'a' || name[0] > 'z') && name[0] != '_' {
+		return false
+	}
+
+	for _, character := range name[1:] {
+		if (character < 'A' || character > 'Z') &&
+			(character < 'a' || character > 'z') &&
+			(character < '0' || character > '9') && character != '_' {
+			return false
+		}
+	}
+
+	return true
 }
 
 func (t *Tracker) isEditor(cmdName string) bool {
