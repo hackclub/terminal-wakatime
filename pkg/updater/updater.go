@@ -329,6 +329,13 @@ func (u *Updater) StartBackgroundUpdate() {
 		return
 	}
 
+	// Development builds have no version to compare, and a binary in a
+	// read-only location (such as /nix/store) can't be replaced. Whatever
+	// installed it is responsible for updating it.
+	if u.currentVersion == "" || u.currentVersion == "dev" || !isWritableDir(filepath.Dir(u.binaryPath)) {
+		return
+	}
+
 	// Record the attempt first so that a failing check does not start a new
 	// update process for every command
 	if err := u.UpdateLastCheckTime(); err != nil {
@@ -340,4 +347,16 @@ func (u *Updater) StartBackgroundUpdate() {
 		return
 	}
 	cmd.Process.Release()
+}
+
+// isWritableDir reports whether a file can be created in dir, which is needed
+// to replace the binary there.
+func isWritableDir(dir string) bool {
+	f, err := os.CreateTemp(dir, ".terminal-wakatime-write-test-*")
+	if err != nil {
+		return false
+	}
+	f.Close()
+	os.Remove(f.Name())
+	return true
 }

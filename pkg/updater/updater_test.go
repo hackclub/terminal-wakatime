@@ -355,3 +355,51 @@ func TestUpdater_StartBackgroundUpdate(t *testing.T) {
 		t.Error("Expected no second update process within the check interval")
 	}
 }
+
+func TestUpdater_StartBackgroundUpdateSkipsUnmanagedBinaries(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("uses a shell script as the binary")
+	}
+	if os.Geteuid() == 0 {
+		t.Skip("root can write to read-only directories")
+	}
+
+	tests := []struct {
+		name     string
+		version  string
+		readOnly bool
+	}{
+		{"development build", "dev", false},
+		{"read-only install location", "v0.0.1", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			wakatimeDir := t.TempDir()
+			binDir := t.TempDir()
+			argsFile := filepath.Join(wakatimeDir, "args")
+			fakeBinary := filepath.Join(binDir, "terminal-wakatime")
+			script := fmt.Sprintf("#!/bin/sh\necho \"$@\" > %q\n", argsFile)
+			if err := os.WriteFile(fakeBinary, []byte(script), 0755); err != nil {
+				t.Fatal(err)
+			}
+			if tt.readOnly {
+				if err := os.Chmod(binDir, 0555); err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(func() { os.Chmod(binDir, 0755) })
+			}
+
+			updater := NewUpdater(tt.version, wakatimeDir, fakeBinary)
+			updater.StartBackgroundUpdate()
+			time.Sleep(300 * time.Millisecond)
+
+			if _, err := os.Stat(argsFile); err == nil {
+				t.Error("Expected no update process to be started")
+			}
+			if entries, _ := os.ReadDir(binDir); len(entries) != 1 {
+				t.Errorf("Expected the write test to clean up, found %d files", len(entries))
+			}
+		})
+	}
+}
