@@ -24,6 +24,9 @@ func TestNewMonitor(t *testing.T) {
 }
 
 func TestProcessCommand(t *testing.T) {
+	// Don't start a real self-update from the test
+	t.Setenv("TERMINAL_WAKATIME_DISABLE_UPDATES", "1")
+
 	cfg := &config.Config{
 		MinCommandTime: 1 * time.Second,
 		Debug:          false, // Disable logging for tests

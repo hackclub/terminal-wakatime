@@ -7,6 +7,8 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"testing"
 	"time"
 )
@@ -312,5 +314,44 @@ func TestUpdater_IntegrationFlow(t *testing.T) {
 	if updateInfo.FromVersion != "v0.0.1" || updateInfo.ToVersion != "v0.0.2" {
 		t.Errorf("Update info mismatch: got %s->%s, want v0.0.1->v0.0.2",
 			updateInfo.FromVersion, updateInfo.ToVersion)
+	}
+}
+
+func TestUpdater_StartBackgroundUpdate(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("uses a shell script as the binary")
+	}
+
+	tempDir := t.TempDir()
+	argsFile := filepath.Join(tempDir, "args")
+	fakeBinary := filepath.Join(tempDir, "terminal-wakatime")
+	script := fmt.Sprintf("#!/bin/sh\necho \"$@\" > %q\n", argsFile)
+	if err := os.WriteFile(fakeBinary, []byte(script), 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	updater := NewUpdater("v0.0.1", tempDir, fakeBinary)
+	updater.StartBackgroundUpdate()
+
+	// The update runs as its own process, so wait for it
+	var args []byte
+	for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); time.Sleep(50 * time.Millisecond) {
+		if args, _ = os.ReadFile(argsFile); len(args) > 0 {
+			break
+		}
+	}
+	if got := strings.TrimSpace(string(args)); got != "update --force" {
+		t.Fatalf("Expected the binary to be run with \"update --force\", got %q", got)
+	}
+
+	// The attempt is recorded, so the next command does not start another update
+	if updater.ShouldCheckForUpdate() {
+		t.Error("Expected the update attempt to be recorded")
+	}
+	os.Remove(argsFile)
+	updater.StartBackgroundUpdate()
+	time.Sleep(200 * time.Millisecond)
+	if _, err := os.Stat(argsFile); err == nil {
+		t.Error("Expected no second update process within the check interval")
 	}
 }

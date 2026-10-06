@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strconv"
@@ -318,4 +319,25 @@ func (u *Updater) CheckAndUpdate() {
 
 	// Run the actual update check in a goroutine to avoid blocking
 	go u.PerformUpdateCheck()
+}
+
+// StartBackgroundUpdate runs "<binary> update" as a separate process when an
+// update check is due. Commands such as track exit within milliseconds, which
+// is too soon for a goroutine to download and install a new binary.
+func (u *Updater) StartBackgroundUpdate() {
+	if !u.ShouldCheckForUpdate() {
+		return
+	}
+
+	// Record the attempt first so that a failing check does not start a new
+	// update process for every command
+	if err := u.UpdateLastCheckTime(); err != nil {
+		return
+	}
+
+	cmd := exec.Command(u.binaryPath, "update", "--force")
+	if err := cmd.Start(); err != nil {
+		return
+	}
+	cmd.Process.Release()
 }
