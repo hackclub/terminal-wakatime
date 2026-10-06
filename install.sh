@@ -310,7 +310,7 @@ setup_shell_integration() {
         
         if [ "$should_configure" = true ]; then
             if setup_shell_config "$config_file" "$shell_type" "$needs_path"; then
-                ((configured_count++))
+                configured_count=$((configured_count + 1))
             fi
         fi
     done
