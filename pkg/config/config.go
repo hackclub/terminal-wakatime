@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"gopkg.in/ini.v1"
@@ -85,8 +86,8 @@ func (c *Config) Load() error {
 			c.APIKey = key.String()
 		}
 
-		if url := section.Key("api_url"); url.String() != "" {
-			c.APIUrl = url.String()
+		if url := strings.TrimSpace(section.Key("api_url").String()); url != "" {
+			c.APIUrl = url
 		}
 
 		if debug, err := section.Key("debug").Bool(); err == nil {
@@ -139,6 +140,7 @@ func (c *Config) Save() error {
 	section := cfg.Section("settings")
 
 	section.Key("api_key").SetValue(c.APIKey)
+	c.APIUrl = strings.TrimSpace(c.APIUrl)
 	section.Key("api_url").SetValue(c.APIUrl)
 	section.Key("debug").SetValue(strconv.FormatBool(c.Debug))
 	section.Key("hidefilenames").SetValue(strconv.FormatBool(c.HideFilenames))
