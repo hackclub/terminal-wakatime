@@ -161,57 +161,92 @@ func (i *Integration) GenerateHooks() string {
 }
 
 func (i *Integration) generateBashHooks() string {
-	preExec := fmt.Sprintf(`
+	return fmt.Sprintf(`
 __terminal_wakatime_preexec() {
     if [ -n "$1" ]; then
         export __TERMINAL_WAKATIME_COMMAND="$1"
         export __TERMINAL_WAKATIME_START_TIME="$(date +%%s)"
         export __TERMINAL_WAKATIME_PWD="$PWD"
     fi
-}`)
+}
 
-	postExec := fmt.Sprintf(`
 __terminal_wakatime_postexec() {
+    local __terminal_wakatime_status=$?
+    __terminal_wakatime_pending=
     if [ -n "$__TERMINAL_WAKATIME_COMMAND" ]; then
         local end_time="$(date +%%s)"
         local duration=$((end_time - __TERMINAL_WAKATIME_START_TIME))
         local command="$__TERMINAL_WAKATIME_COMMAND"
         local pwd="$__TERMINAL_WAKATIME_PWD"
-        
+
         # Clear variables immediately
         unset __TERMINAL_WAKATIME_COMMAND
         unset __TERMINAL_WAKATIME_START_TIME
         unset __TERMINAL_WAKATIME_PWD
-        
+
         # Only track commands that run for a minimum duration
         if [ "$duration" -ge %d ]; then
             ("%s" track --command "$command" --duration "$duration" --pwd "$pwd" >/dev/null 2>&1 &)
         fi
     fi
-}`, i.minCommandTime, i.binPath)
+    # Keep $? intact for anything else in PROMPT_COMMAND and for PS1
+    return $__terminal_wakatime_status
+}
 
-	promptCommand := `
-if [[ "$PROMPT_COMMAND" != *"__terminal_wakatime_postexec"* ]]; then
-    PROMPT_COMMAND="__terminal_wakatime_postexec; $PROMPT_COMMAND"
-fi`
-
-	// Add preexec hook for bash (requires bash-preexec or manual setup)
-	preexecSetup := `
-if [[ -n "$BASH_VERSION" ]]; then
-    if command -v __bp_install >/dev/null 2>&1; then
-        # bash-preexec is available
+if [[ -n "${bash_preexec_imported:-}${__bp_imported:-}" ]] || declare -F __bp_install >/dev/null 2>&1; then
+    # bash-preexec is loaded, so use its hooks
+    if [[ " ${preexec_functions[*]:-} " != *" __terminal_wakatime_preexec "* ]]; then
         preexec_functions+=(__terminal_wakatime_preexec)
+    fi
+    if [[ " ${precmd_functions[*]:-} " != *" __terminal_wakatime_postexec "* ]]; then
+        precmd_functions+=(__terminal_wakatime_postexec)
+    fi
+else
+    # bash has no preexec hook, so use a DEBUG trap. It fires before every
+    # simple command, including those run by PROMPT_COMMAND, so only the first
+    # command after the user submits a line is recorded.
+    __terminal_wakatime_debug() {
+        if [[ -n "${__terminal_wakatime_pending:-}" && -z "${COMP_LINE:-}" && "$BASH_COMMAND" != __terminal_wakatime_* ]]; then
+            __terminal_wakatime_pending=
+            __terminal_wakatime_preexec "$BASH_COMMAND"
+        fi
+    }
+
+    if [[ "${PROMPT_COMMAND:-}" != *"__terminal_wakatime_postexec"* ]]; then
+        PROMPT_COMMAND="__terminal_wakatime_postexec${PROMPT_COMMAND:+; $PROMPT_COMMAND}"
+    fi
+
+    if (( BASH_VERSINFO[0] > 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] >= 4) )); then
+        # PS0 is expanded once per submitted command line, and never for
+        # PROMPT_COMMAND, so it marks the start of a user command exactly
+        if [[ "${PS0:-}" != *"__terminal_wakatime_pending"* ]]; then
+            PS0="${PS0:-}"'${PS0:0:$((__terminal_wakatime_pending=1,0))}'
+        fi
     else
-        # Fallback: use DEBUG trap (less reliable but works)
-        if [[ "$PS4" != *"__terminal_wakatime_preexec"* ]]; then
-            __original_ps4="$PS4"
-            PS4='$(__terminal_wakatime_preexec "$BASH_COMMAND"; echo "$__original_ps4")'
-            set -T
+        # bash < 4.4 has no PS0, so mark the end of PROMPT_COMMAND instead
+        __terminal_wakatime_ready() {
+            local __terminal_wakatime_status=$?
+            __terminal_wakatime_pending=1
+            return $__terminal_wakatime_status
+        }
+        if [[ "$PROMPT_COMMAND" != *"__terminal_wakatime_ready"* ]]; then
+            PROMPT_COMMAND="$PROMPT_COMMAND; __terminal_wakatime_ready"
         fi
     fi
-fi`
 
-	return fmt.Sprintf("%s\n%s\n%s\n%s", preExec, postExec, promptCommand, preexecSetup)
+    __terminal_wakatime_trap=$(trap -p DEBUG)
+    if [[ "$__terminal_wakatime_trap" != *"__terminal_wakatime_debug"* ]]; then
+        if [[ -n "$__terminal_wakatime_trap" ]]; then
+            # Keep any DEBUG trap another tool already set
+            eval "__terminal_wakatime_trap=($__terminal_wakatime_trap)"
+            trap "${__terminal_wakatime_trap[2]}; __terminal_wakatime_debug \"\$_\"" DEBUG
+        else
+            # Passing "$_" through keeps $_ intact for the user's command
+            trap '__terminal_wakatime_debug "$_"' DEBUG
+        fi
+    fi
+    unset __terminal_wakatime_trap
+fi`, i.minCommandTime, i.binPath)
 }
 
 func (i *Integration) generateZshHooks() string {
@@ -334,19 +369,6 @@ func (i *Integration) ValidateEnvironment() []string {
 		issues = append(issues, fmt.Sprintf("Binary not found at %s", i.binPath))
 	}
 
-	// Check shell-specific requirements
-	switch i.shell {
-	case Bash:
-		// Check if bash-preexec is available for better command tracking
-		if !commandExists("__bp_install") {
-			issues = append(issues, "Consider installing bash-preexec for better command tracking: https://github.com/rcaloras/bash-preexec")
-		}
-	case Zsh:
-		// Zsh has built-in preexec/precmd support
-	case Fish:
-		// Fish has built-in event system
-	}
-
 	// Check for conflicting integrations
 	existingIntegrations := []string{
 		"WAKATIME_HOME",
@@ -361,12 +383,6 @@ func (i *Integration) ValidateEnvironment() []string {
 	}
 
 	return issues
-}
-
-func commandExists(cmd string) bool {
-	// This is a simplified check - in a real implementation you'd use exec.LookPath
-	// or run a command to check if it exists
-	return false
 }
 
 func expandPath(path string) string {

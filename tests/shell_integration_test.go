@@ -810,3 +810,72 @@ func readLogLines(path string) ([]string, error) {
 
 	return lines, scanner.Err()
 }
+
+// TestBashInteractiveTracking runs a real interactive bash session, so it
+// exercises the DEBUG trap and PS0 hooks instead of calling them by hand.
+func TestBashInteractiveTracking(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping shell integration tests in short mode")
+	}
+	bashPath, err := exec.LookPath("bash")
+	if err != nil {
+		t.Skip("bash not installed")
+	}
+
+	suite := setupShellTestSuite(t)
+	defer suite.cleanup()
+
+	// Skip wakatime-cli's own update check so the mock CLI stays in place
+	lastCheck := []byte(time.Now().Format(time.RFC3339))
+	if err := os.WriteFile(filepath.Join(suite.configDir, "last_update_check"), lastCheck, 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	rcFile := filepath.Join(suite.testDir, "bashrc")
+	rc := fmt.Sprintf("PROMPT_COMMAND='history -a'\neval \"$(\"%s\" init bash)\"\n", suite.binaryPath)
+	if err := os.WriteFile(rcFile, []byte(rc), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cmd := exec.Command(bashPath, "--rcfile", rcFile, "-i")
+	cmd.Dir = suite.testDir
+	cmd.Env = []string{
+		"HOME=" + suite.testDir,
+		"PATH=" + os.Getenv("PATH"),
+		"TERM=dumb",
+		"TERMINAL_WAKATIME_DISABLE_UPDATES=1",
+	}
+	// The empty line and PROMPT_COMMAND must not be tracked
+	cmd.Stdin = strings.NewReader("ls\n\nfalse\necho \"status=$?\"\nexit\n")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("bash session failed: %v\nOutput: %s", err, output)
+	}
+	if !strings.Contains(string(output), "status=1") {
+		t.Errorf("Expected the hooks to preserve $?, got output:\n%s", output)
+	}
+
+	// The hook runs track in the background, so wait for the heartbeats
+	heartbeatsLog := filepath.Join(suite.testDir, "heartbeats.log")
+	want := []string{"entity=ls ", "entity=false ", "entity=echo "}
+	var lines []string
+	for deadline := time.Now().Add(10 * time.Second); time.Now().Before(deadline); time.Sleep(200 * time.Millisecond) {
+		content, _ := os.ReadFile(heartbeatsLog)
+		lines = strings.Split(strings.TrimSpace(string(content)), "\n")
+		if len(lines) >= len(want) && lines[0] != "" {
+			break
+		}
+	}
+	time.Sleep(500 * time.Millisecond)
+	content, _ := os.ReadFile(heartbeatsLog)
+	lines = strings.Split(strings.TrimSpace(string(content)), "\n")
+
+	if len(lines) != len(want) {
+		t.Fatalf("Expected %d heartbeats, got %d:\n%s", len(want), len(lines), content)
+	}
+	for _, entity := range want {
+		if !strings.Contains(string(content), entity) {
+			t.Errorf("Expected a heartbeat with %q, got:\n%s", entity, content)
+		}
+	}
+}
