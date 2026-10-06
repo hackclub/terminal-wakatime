@@ -21,8 +21,10 @@
       packages = forAllSystems ({ pkgs }: {
         default = pkgs.buildGoModule {
           pname = "terminal-wakatime";
-          version = "1.1.7";
+          version = "1.1.8";
           subPackages = [ "cmd/terminal-wakatime" ];
+          # Match the release builds, so the binary reports its real version
+          ldflags = [ "-X github.com/hackclub/terminal-wakatime/pkg/config.PluginVersion=v1.1.8" ];
           src = self;
           vendorHash = "sha256-fchZVBY43ccu6nbWn572Qzfgeq4uIwpLf99lOuJCO44=";
         };
