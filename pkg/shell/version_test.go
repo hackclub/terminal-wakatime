@@ -14,6 +14,7 @@ func TestGetShellVersion(t *testing.T) {
 		{"bash version", Bash, true},
 		{"zsh version", Zsh, true},
 		{"fish version", Fish, true},
+		{"powershell version", PowerShell, true},
 	}
 
 	for _, tt := range tests {
@@ -64,7 +65,7 @@ func TestGetCurrentShellInfo(t *testing.T) {
 	shell, version := GetCurrentShellInfo()
 
 	// Should detect a valid shell
-	validShells := []Shell{Bash, Zsh, Fish}
+	validShells := []Shell{Bash, Zsh, Fish, PowerShell}
 	isValidShell := false
 	for _, validShell := range validShells {
 		if shell == validShell {
@@ -74,7 +75,7 @@ func TestGetCurrentShellInfo(t *testing.T) {
 	}
 
 	if !isValidShell {
-		t.Errorf("Expected a valid shell (bash, zsh, fish), got: %s", shell)
+		t.Errorf("Expected a valid shell (bash, zsh, fish, powershell), got: %s", shell)
 	}
 
 	// Version should not be empty

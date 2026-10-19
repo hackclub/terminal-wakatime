@@ -17,6 +17,9 @@ func TestDetectShell(t *testing.T) {
 		{"/usr/local/bin/zsh", Zsh},
 		{"/usr/bin/fish", Fish},
 		{"/usr/local/bin/fish", Fish},
+		{"/usr/bin/pwsh", PowerShell},
+		{"/usr/bin/powershell", PowerShell},
+		{"C:/Program Files/PowerShell/7/pwsh.exe", PowerShell},
 		{"/bin/sh", Bash},             // fallback
 		{"", Bash},                    // fallback when SHELL is empty
 		{"/some/unknown/shell", Bash}, // fallback for unknown shells
@@ -24,9 +27,26 @@ func TestDetectShell(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.shellPath, func(t *testing.T) {
-			// Save original SHELL env var
+			// Save original env vars that affect shell detection
 			originalShell := os.Getenv("SHELL")
+			originalPSModulePath := os.Getenv("PSModulePath")
+			originalPowerShellChannel := os.Getenv("POWERSHELL_DISTRIBUTION_CHANNEL")
+			originalOverride := os.Getenv("TERMINAL_WAKATIME_SHELL")
+			originalBashVersion := os.Getenv("BASH_VERSION")
+			originalZshVersion := os.Getenv("ZSH_VERSION")
 			defer os.Setenv("SHELL", originalShell)
+			defer os.Setenv("PSModulePath", originalPSModulePath)
+			defer os.Setenv("POWERSHELL_DISTRIBUTION_CHANNEL", originalPowerShellChannel)
+			defer os.Setenv("TERMINAL_WAKATIME_SHELL", originalOverride)
+			defer os.Setenv("BASH_VERSION", originalBashVersion)
+			defer os.Setenv("ZSH_VERSION", originalZshVersion)
+
+			// Clear external env influence so this test only validates SHELL path behavior
+			os.Setenv("PSModulePath", "")
+			os.Setenv("POWERSHELL_DISTRIBUTION_CHANNEL", "")
+			os.Setenv("TERMINAL_WAKATIME_SHELL", "")
+			os.Setenv("BASH_VERSION", "")
+			os.Setenv("ZSH_VERSION", "")
 
 			os.Setenv("SHELL", tt.shellPath)
 			result := detectShell()
@@ -47,6 +67,58 @@ func TestNewIntegration(t *testing.T) {
 
 	if integration.shell == "" {
 		t.Error("Expected shell to be detected")
+	}
+}
+
+func TestDetectShellPowerShellEnv(t *testing.T) {
+	originalPSModulePath := os.Getenv("PSModulePath")
+	originalShell := os.Getenv("SHELL")
+	defer os.Setenv("PSModulePath", originalPSModulePath)
+	defer os.Setenv("SHELL", originalShell)
+
+	os.Setenv("PSModulePath", "C:/Program Files/PowerShell/Modules")
+	os.Setenv("SHELL", "")
+
+	if result := detectShell(); result != PowerShell {
+		t.Errorf("Expected PowerShell when PSModulePath is set, got %s", result)
+	}
+}
+
+func TestDetectShellPSModulePathDoesNotOverrideBashShell(t *testing.T) {
+	originalPSModulePath := os.Getenv("PSModulePath")
+	originalShell := os.Getenv("SHELL")
+	originalBashVersion := os.Getenv("BASH_VERSION")
+	originalZshVersion := os.Getenv("ZSH_VERSION")
+	defer os.Setenv("PSModulePath", originalPSModulePath)
+	defer os.Setenv("SHELL", originalShell)
+	defer os.Setenv("BASH_VERSION", originalBashVersion)
+	defer os.Setenv("ZSH_VERSION", originalZshVersion)
+
+	os.Setenv("PSModulePath", "C:/Program Files/PowerShell/Modules")
+	os.Setenv("SHELL", "/bin/bash")
+	os.Setenv("BASH_VERSION", "")
+	os.Setenv("ZSH_VERSION", "")
+
+	if result := detectShell(); result != Bash {
+		t.Errorf("Expected Bash when SHELL is bash even with PSModulePath set, got %s", result)
+	}
+}
+
+func TestDetectShellExplicitOverride(t *testing.T) {
+	originalOverride := os.Getenv("TERMINAL_WAKATIME_SHELL")
+	originalPSModulePath := os.Getenv("PSModulePath")
+	originalShell := os.Getenv("SHELL")
+	defer os.Setenv("TERMINAL_WAKATIME_SHELL", originalOverride)
+	defer os.Setenv("PSModulePath", originalPSModulePath)
+	defer os.Setenv("SHELL", originalShell)
+
+	// Simulate nested shell where SHELL points to zsh but tracking should be powershell
+	os.Setenv("TERMINAL_WAKATIME_SHELL", "powershell")
+	os.Setenv("PSModulePath", "")
+	os.Setenv("SHELL", "/bin/zsh")
+
+	if result := detectShell(); result != PowerShell {
+		t.Errorf("Expected PowerShell when TERMINAL_WAKATIME_SHELL override is set, got %s", result)
 	}
 }
 
@@ -133,6 +205,30 @@ func TestGenerateFishHooks(t *testing.T) {
 	}
 }
 
+func TestGeneratePowerShellHooks(t *testing.T) {
+	integration := &Integration{
+		shell:   PowerShell,
+		binPath: `C:\\tools\\terminal-wakatime.exe`,
+	}
+
+	hooks := integration.generatePowerShellHooks()
+
+	expectedParts := []string{
+		"__terminal_wakatime_precmd",
+		"Set-PSReadLineOption",
+		"CommandValidationHandler",
+		"Start-Process",
+		"$env:TERMINAL_WAKATIME_SHELL = 'powershell'",
+		integration.binPath,
+	}
+
+	for _, part := range expectedParts {
+		if !strings.Contains(hooks, part) {
+			t.Errorf("Expected hooks to contain '%s'", part)
+		}
+	}
+}
+
 func TestGenerateHooks(t *testing.T) {
 	binPath := "/usr/local/bin/terminal-wakatime"
 
@@ -162,6 +258,14 @@ func TestGenerateHooks(t *testing.T) {
 				"__terminal_wakatime_preexec",
 				"__terminal_wakatime_postexec",
 				"fish_preexec",
+			},
+		},
+		{
+			shell: PowerShell,
+			contains: []string{
+				"__terminal_wakatime_precmd",
+				"Set-PSReadLineOption",
+				"Start-Process",
 			},
 		},
 	}
@@ -215,6 +319,13 @@ func TestGetConfigFileRecommendations(t *testing.T) {
 				"~/.config/fish/config.fish",
 			},
 		},
+		{
+			shell: PowerShell,
+			expected: []string{
+				"~/.config/powershell/Microsoft.PowerShell_profile.ps1",
+				"~/Documents/PowerShell/Microsoft.PowerShell_profile.ps1",
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -263,6 +374,13 @@ func TestGenerateInstallCommand(t *testing.T) {
 				"~/.config/fish/config.fish",
 			},
 		},
+		{
+			shell: PowerShell,
+			contains: []string{
+				`& ''/usr/local/bin/terminal-wakatime'' init powershell | Invoke-Expression`,
+				"~/.config/powershell/Microsoft.PowerShell_profile.ps1",
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -291,6 +409,7 @@ func TestGetShellName(t *testing.T) {
 		{Bash, "bash"},
 		{Zsh, "zsh"},
 		{Fish, "fish"},
+		{PowerShell, "powershell"},
 	}
 
 	for _, tt := range tests {
