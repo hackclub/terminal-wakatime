@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
+	"strings"
 	"time"
 
 	"gopkg.in/ini.v1"
@@ -40,6 +42,20 @@ type Config struct {
 	IncludeOnlyWithProjectFile bool
 	configFile                 string
 	wakaTimeDir                string
+	saved                      savedSettings
+}
+
+// savedSettings is a snapshot of the [settings] values as loaded from the
+// config file, so Save only writes the settings changed in this process.
+type savedSettings struct {
+	apiKey                     string
+	apiURL                     string
+	debug                      bool
+	hideFilenames              bool
+	project                    string
+	exclude                    []string
+	include                    []string
+	includeOnlyWithProjectFile bool
 }
 
 func NewConfig() (*Config, error) {
@@ -114,6 +130,8 @@ func (c *Config) Load() error {
 		}
 	}
 
+	c.saved = c.snapshot()
+
 	// Load environment variables for terminal-wakatime specific settings
 	if freq := os.Getenv("TERMINAL_WAKATIME_HEARTBEAT_FREQUENCY"); freq != "" {
 		if seconds, err := strconv.Atoi(freq); err == nil {
@@ -134,34 +152,57 @@ func (c *Config) Load() error {
 	return nil
 }
 
+// Save writes the settings changed since Load back to the config file.
+// ~/.wakatime.cfg is shared with wakatime-cli and every other WakaTime
+// plugin, so every other key, section and comment is left untouched.
 func (c *Config) Save() error {
-	cfg := ini.Empty()
-	section := cfg.Section("settings")
+	saved := c.saved
+	var changed []keyValue
 
-	section.Key("api_key").SetValue(c.APIKey)
-	section.Key("api_url").SetValue(c.APIUrl)
-	section.Key("debug").SetValue(strconv.FormatBool(c.Debug))
-	section.Key("hidefilenames").SetValue(strconv.FormatBool(c.HideFilenames))
-
-	if c.Project != "" {
-		section.Key("project").SetValue(c.Project)
+	if c.APIKey != saved.apiKey {
+		changed = append(changed, keyValue{"api_key", c.APIKey})
+	}
+	if c.APIUrl != saved.apiURL {
+		changed = append(changed, keyValue{"api_url", c.APIUrl})
+	}
+	if c.Debug != saved.debug {
+		changed = append(changed, keyValue{"debug", strconv.FormatBool(c.Debug)})
+	}
+	if c.HideFilenames != saved.hideFilenames {
+		changed = append(changed, keyValue{"hidefilenames", strconv.FormatBool(c.HideFilenames)})
+	}
+	if c.Project != saved.project {
+		changed = append(changed, keyValue{"project", c.Project})
+	}
+	if !slices.Equal(c.Exclude, saved.exclude) {
+		changed = append(changed, keyValue{"exclude", strings.Join(c.Exclude, "\n")})
+	}
+	if !slices.Equal(c.Include, saved.include) {
+		changed = append(changed, keyValue{"include", strings.Join(c.Include, "\n")})
+	}
+	if c.IncludeOnlyWithProjectFile != saved.includeOnlyWithProjectFile {
+		changed = append(changed, keyValue{"include_only_with_project_file", strconv.FormatBool(c.IncludeOnlyWithProjectFile)})
 	}
 
-	if len(c.Exclude) > 0 {
-		section.Key("exclude").SetValue(joinStrings(c.Exclude, "\n"))
+	if err := updateINISection(c.configFile, "settings", changed); err != nil {
+		return err
 	}
 
-	if len(c.Include) > 0 {
-		section.Key("include").SetValue(joinStrings(c.Include, "\n"))
+	c.saved = c.snapshot()
+	return nil
+}
+
+func (c *Config) snapshot() savedSettings {
+	return savedSettings{
+		apiKey:                     c.APIKey,
+		apiURL:                     c.APIUrl,
+		debug:                      c.Debug,
+		hideFilenames:              c.HideFilenames,
+		project:                    c.Project,
+		exclude:                    slices.Clone(c.Exclude),
+		include:                    slices.Clone(c.Include),
+		includeOnlyWithProjectFile: c.IncludeOnlyWithProjectFile,
 	}
-
-	section.Key("include_only_with_project_file").SetValue(strconv.FormatBool(c.IncludeOnlyWithProjectFile))
-
-	if err := os.MkdirAll(filepath.Dir(c.configFile), 0755); err != nil {
-		return fmt.Errorf("failed to create config directory: %w", err)
-	}
-
-	return cfg.SaveTo(c.configFile)
 }
 
 func (c *Config) WakaTimeDir() string {
@@ -187,15 +228,4 @@ func (c *Config) Validate() error {
 // PluginVersion returns the current plugin version
 func (c *Config) PluginVersion() string {
 	return PluginVersion
-}
-
-func joinStrings(slice []string, sep string) string {
-	if len(slice) == 0 {
-		return ""
-	}
-	result := slice[0]
-	for _, s := range slice[1:] {
-		result += sep + s
-	}
-	return result
 }
