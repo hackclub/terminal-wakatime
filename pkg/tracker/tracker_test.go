@@ -360,3 +360,33 @@ func TestShouldSendHeartbeat(t *testing.T) {
 		t.Error("Expected to send first heartbeat")
 	}
 }
+
+// The terminal cannot see where the cursor is inside an editor, so file
+// heartbeats must not claim a position. A fixed line 1 / column 1 looks like
+// fabricated activity to Hackatime's fraud review.
+func TestEditorActivityHasNoCursorPosition(t *testing.T) {
+	cfg := &config.Config{DisableEditorSuggestions: true}
+	tracker := NewTracker(cfg)
+
+	tempDir := t.TempDir()
+	testFile := filepath.Join(tempDir, "Dockerfile")
+	if err := os.WriteFile(testFile, []byte("FROM alpine\n"), 0644); err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+
+	activities := []*Activity{
+		tracker.parseCommandToSingleActivity("vim Dockerfile", tempDir),
+		tracker.handleEditorCommandSingle([]string{"vim", testFile}, tempDir),
+	}
+	activities = append(activities, tracker.handleEditorCommand([]string{"vim", testFile}, tempDir)...)
+
+	for _, activity := range activities {
+		if activity.EntityType != ActivityFile {
+			t.Fatalf("Expected a file activity, got %+v", activity)
+		}
+		if activity.LineNo != nil || activity.CursorPos != nil {
+			t.Errorf("Expected no line/cursor position for %s, got lineno set=%t cursorpos set=%t",
+				activity.Entity, activity.LineNo != nil, activity.CursorPos != nil)
+		}
+	}
+}

@@ -181,8 +181,6 @@ func (t *Tracker) TrackFile(filePath string, isWrite bool) error {
 		IsWrite:    isWrite,
 		Timestamp:  time.Now(),
 		Lines:      getFileLines(filePath),
-		LineNo:     getDefaultLineNumber(),
-		CursorPos:  getDefaultCursorPos(),
 	}
 
 	return t.sendActivity(activity)
@@ -303,8 +301,6 @@ func (t *Tracker) handleEditorCommand(fields []string, workingDir string) []*Act
 				IsWrite:    true, // File editing is typically writing
 				Timestamp:  time.Now(),
 				Lines:      getFileLines(filePath),
-				LineNo:     getDefaultLineNumber(),
-				CursorPos:  getDefaultCursorPos(),
 			}
 			activities = append(activities, activity)
 		}
@@ -376,8 +372,6 @@ func (t *Tracker) handleEditorCommandSingle(fields []string, workingDir string) 
 			IsWrite:    true,
 			Timestamp:  time.Now(),
 			Lines:      &totalLines,
-			LineNo:     getDefaultLineNumber(),
-			CursorPos:  getDefaultCursorPos(),
 		}
 	}
 
@@ -940,16 +934,4 @@ func isBuildCommand(subcommand string) bool {
 		}
 	}
 	return false
-}
-
-// getDefaultLineNumber returns a default line number for file operations
-func getDefaultLineNumber() *int {
-	line := 1
-	return &line
-}
-
-// getDefaultCursorPos returns a default cursor position
-func getDefaultCursorPos() *int {
-	pos := 1
-	return &pos
 }
