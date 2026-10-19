@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"gopkg.in/ini.v1"
@@ -74,7 +75,9 @@ func NewConfig() (*Config, error) {
 func (c *Config) Load() error {
 	// Load from config file if it exists
 	if _, err := os.Stat(c.configFile); !os.IsNotExist(err) {
-		cfg, err := ini.Load(c.configFile)
+		// wakatime-cli documents list settings such as exclude/include as
+		// indented continuation lines, and parses them the same way.
+		cfg, err := ini.LoadSources(ini.LoadOptions{AllowPythonMultilineValues: true}, c.configFile)
 		if err != nil {
 			return fmt.Errorf("failed to load config file: %w", err)
 		}
@@ -101,11 +104,11 @@ func (c *Config) Load() error {
 			c.Project = project.String()
 		}
 
-		if exclude := section.Key("exclude").Strings("\n"); len(exclude) > 0 {
+		if exclude := splitList(section.Key("exclude").String()); len(exclude) > 0 {
 			c.Exclude = exclude
 		}
 
-		if include := section.Key("include").Strings("\n"); len(include) > 0 {
+		if include := splitList(section.Key("include").String()); len(include) > 0 {
 			c.Include = include
 		}
 
@@ -198,4 +201,16 @@ func joinStrings(slice []string, sep string) string {
 		result += sep + s
 	}
 	return result
+}
+
+// splitList splits a newline-separated list setting, dropping blank entries
+// (a value that starts on the line after "exclude =" begins with a newline).
+func splitList(value string) []string {
+	var items []string
+	for _, item := range strings.Split(value, "\n") {
+		if item = strings.TrimSpace(item); item != "" {
+			items = append(items, item)
+		}
+	}
+	return items
 }
