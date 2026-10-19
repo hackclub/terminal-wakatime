@@ -86,6 +86,25 @@ func TestParseCommandToSingleActivity(t *testing.T) {
 	}
 }
 
+func TestParseCommandSkipsEnvironmentAssignments(t *testing.T) {
+	tracker := NewTracker(&config.Config{Project: "test-project"})
+
+	activity := tracker.parseCommandToSingleActivity("MY_API_KEY=abcd234 ./executable", "/tmp")
+	if activity == nil {
+		t.Fatal("expected an activity")
+	}
+	if activity.Entity != "executable" {
+		t.Fatalf("expected executable entity, got %q", activity.Entity)
+	}
+	if activity.EntityType != ActivityApp {
+		t.Fatalf("expected app entity type, got %q", activity.EntityType)
+	}
+
+	if activity := tracker.parseCommandToSingleActivity("MY_API_KEY=abcd234", "/tmp"); activity != nil {
+		t.Fatalf("expected assignment-only command to be ignored, got %+v", activity)
+	}
+}
+
 func TestIsEditor(t *testing.T) {
 	cfg := &config.Config{}
 	tracker := NewTracker(cfg)
