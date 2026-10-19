@@ -28,6 +28,9 @@ const (
 type CLI struct {
 	config  *config.Config
 	binPath string
+
+	// releasesURL overrides GitHubReleasesURL (used by tests).
+	releasesURL string
 }
 
 type GitHubRelease struct {
@@ -112,6 +115,10 @@ func (c *CLI) checkForUpdates() error {
 		return nil
 	}
 
+	// Record the check before doing it, so a failed request or an unparsable
+	// version waits for the next interval instead of retrying on every command.
+	c.saveLastUpdateCheck()
+
 	release, err := c.getLatestRelease()
 	if err != nil {
 		return nil // Silently fail on update checks
@@ -126,7 +133,6 @@ func (c *CLI) checkForUpdates() error {
 		c.install() // Silently update
 	}
 
-	c.saveLastUpdateCheck()
 	return nil
 }
 
@@ -137,17 +143,28 @@ func (c *CLI) getCurrentVersion() (string, error) {
 		return "", err
 	}
 
-	// Parse version from output like "wakatime-cli v1.73.0"
-	parts := strings.Fields(string(output))
-	if len(parts) >= 2 {
-		return parts[1], nil
+	return parseVersion(string(output))
+}
+
+// parseVersion extracts the version from `wakatime-cli --version` output:
+// "v2.27.13" for current releases, "wakatime-cli v1.73.0" for older ones.
+func parseVersion(output string) (string, error) {
+	for _, field := range strings.Fields(output) {
+		if len(field) > 1 && field[0] == 'v' && field[1] >= '0' && field[1] <= '9' {
+			return field, nil
+		}
 	}
 
-	return "", fmt.Errorf("unable to parse version")
+	return "", fmt.Errorf("unable to parse version from %q", strings.TrimSpace(output))
 }
 
 func (c *CLI) getLatestRelease() (*GitHubRelease, error) {
-	resp, err := http.Get(GitHubReleasesURL)
+	url := GitHubReleasesURL
+	if c.releasesURL != "" {
+		url = c.releasesURL
+	}
+
+	resp, err := http.Get(url)
 	if err != nil {
 		return nil, err
 	}
