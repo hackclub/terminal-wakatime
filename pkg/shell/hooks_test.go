@@ -355,3 +355,22 @@ func TestExpandPath(t *testing.T) {
 		})
 	}
 }
+
+// The hooks run around every command, so they must not start extra programs
+// just to measure time: `date` costs ~1.5ms per call, and starting another
+// fish costs ~15ms per command.
+func TestHooksDoNotSpawnProcessesForTiming(t *testing.T) {
+	for _, shellName := range []string{"bash", "zsh", "fish"} {
+		hooks := NewIntegrationForShell("/usr/local/bin/terminal-wakatime", shellName).GenerateHooks()
+
+		for _, slow := range []string{"date +%s", "(date", "fish -c"} {
+			if strings.Contains(hooks, slow) {
+				t.Errorf("%s hook runs %q on every command", shellName, slow)
+			}
+		}
+	}
+
+	if hooks := NewIntegrationForShell("/usr/local/bin/terminal-wakatime", "fish").GenerateHooks(); !strings.Contains(hooks, "$CMD_DURATION") {
+		t.Error("fish hook should use fish's own $CMD_DURATION")
+	}
+}

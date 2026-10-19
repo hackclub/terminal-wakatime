@@ -165,7 +165,7 @@ func (i *Integration) generateBashHooks() string {
 __terminal_wakatime_preexec() {
     if [ -n "$1" ]; then
         export __TERMINAL_WAKATIME_COMMAND="$1"
-        export __TERMINAL_WAKATIME_START_TIME="$(date +%%s)"
+        export __TERMINAL_WAKATIME_START_TIME="${SECONDS%%%%.*}"
         export __TERMINAL_WAKATIME_PWD="$PWD"
     fi
 }
@@ -174,8 +174,7 @@ __terminal_wakatime_postexec() {
     local __terminal_wakatime_status=$?
     __terminal_wakatime_pending=
     if [ -n "$__TERMINAL_WAKATIME_COMMAND" ]; then
-        local end_time="$(date +%%s)"
-        local duration=$((end_time - __TERMINAL_WAKATIME_START_TIME))
+        local duration=$((${SECONDS%%%%.*} - __TERMINAL_WAKATIME_START_TIME))
         local command="$__TERMINAL_WAKATIME_COMMAND"
         local pwd="$__TERMINAL_WAKATIME_PWD"
 
@@ -254,7 +253,7 @@ func (i *Integration) generateZshHooks() string {
 __terminal_wakatime_preexec() {
     if [ -n "$1" ]; then
         export __TERMINAL_WAKATIME_COMMAND="$1"
-        export __TERMINAL_WAKATIME_START_TIME="$(date +%%s)"
+        export __TERMINAL_WAKATIME_START_TIME="${SECONDS%%%%.*}"
         export __TERMINAL_WAKATIME_PWD="$PWD"
     fi
 }`)
@@ -262,8 +261,7 @@ __terminal_wakatime_preexec() {
 	postExec := fmt.Sprintf(`
 __terminal_wakatime_precmd() {
     if [ -n "$__TERMINAL_WAKATIME_COMMAND" ]; then
-        local end_time="$(date +%%s)"
-        local duration=$((end_time - __TERMINAL_WAKATIME_START_TIME))
+        local duration=$((${SECONDS%%%%.*} - __TERMINAL_WAKATIME_START_TIME))
         local command="$__TERMINAL_WAKATIME_COMMAND"
         local pwd="$__TERMINAL_WAKATIME_PWD"
         
@@ -298,25 +296,25 @@ func (i *Integration) generateFishHooks() string {
 	return fmt.Sprintf(`
 function __terminal_wakatime_preexec --on-event fish_preexec
     set -g __TERMINAL_WAKATIME_COMMAND $argv[1]
-    set -g __TERMINAL_WAKATIME_START_TIME (date +%%s)
     set -g __TERMINAL_WAKATIME_PWD $PWD
 end
 
 function __terminal_wakatime_postexec --on-event fish_postexec
     if set -q __TERMINAL_WAKATIME_COMMAND
-        set end_time (date +%%s)
-        set duration (math $end_time - $__TERMINAL_WAKATIME_START_TIME)
+        # fish measures every command itself, in milliseconds
+        set duration (math --scale=0 "$CMD_DURATION / 1000")
         set command "$__TERMINAL_WAKATIME_COMMAND"
         set pwd "$__TERMINAL_WAKATIME_PWD"
         
         # Clear variables immediately
         set -e __TERMINAL_WAKATIME_COMMAND
-        set -e __TERMINAL_WAKATIME_START_TIME
         set -e __TERMINAL_WAKATIME_PWD
         
         # Only track commands that run for a minimum duration
         if test $duration -ge %d
-            fish -c '"%s" track --command "$argv[1]" --duration "$argv[2]" --pwd "$argv[3]" >/dev/null 2>&1 &' -- "$command" "$duration" "$pwd"
+            # sh starts far faster than another fish, and backgrounding inside
+            # it leaves the user's $last_pid alone
+            command sh -c '"$0" track --command "$1" --duration "$2" --pwd "$3" >/dev/null 2>&1 &' "%s" "$command" "$duration" "$pwd"
         end
     end
 end`, i.minCommandTime, i.binPath)
