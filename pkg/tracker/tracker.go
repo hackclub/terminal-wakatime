@@ -188,27 +188,75 @@ func (t *Tracker) TrackFile(filePath string, isWrite bool) error {
 	return t.sendActivity(activity)
 }
 
+// Ranks used to pick the most meaningful command on a line with several,
+// e.g. the editor in "cd api && vim main.go".
+const (
+	rankDirectoryChange = iota
+	rankOtherCommand
+	rankCodingApp
+	rankBuildTest
+	rankRemote
+	rankGit
+	rankEditor
+)
+
+// parseCommandToSingleActivity returns one activity for a command line. When
+// the line runs several commands, the most meaningful one is used (on a tie,
+// the first), and a `cd` changes the directory for the commands after it.
 func (t *Tracker) parseCommandToSingleActivity(command string, workingDir string) *Activity {
+	var best *Activity
+	bestRank := -1
+
+	for _, simpleCommand := range splitCommandLine(command) {
+		activity, rank := t.parseSimpleCommand(simpleCommand, workingDir)
+		if activity != nil && rank > bestRank {
+			best, bestRank = activity, rank
+		}
+
+		if fields := strings.Fields(simpleCommand); len(fields) > 1 && filepath.Base(fields[0]) == "cd" {
+			workingDir = resolveDirectory(fields[1], workingDir)
+		}
+	}
+
+	return best
+}
+
+// resolveDirectory resolves a cd target against workingDir, expanding ~.
+func resolveDirectory(target, workingDir string) string {
+	if target == "~" || strings.HasPrefix(target, "~/") {
+		if home, err := os.UserHomeDir(); err == nil {
+			return filepath.Join(home, strings.TrimPrefix(target, "~"))
+		}
+	}
+	if filepath.IsAbs(target) {
+		return target
+	}
+	return filepath.Join(workingDir, target)
+}
+
+// parseSimpleCommand classifies a single command (no ;, &&, | ...) and ranks
+// how meaningful it is.
+func (t *Tracker) parseSimpleCommand(command string, workingDir string) (*Activity, int) {
 	fields := strings.Fields(command)
 	if len(fields) == 0 {
-		return nil
+		return nil, rankOtherCommand
 	}
 
 	cmdName := filepath.Base(fields[0])
 
 	// Check for editor commands
 	if t.isEditor(cmdName) {
-		return t.handleEditorCommandSingle(fields, workingDir)
+		return t.handleEditorCommandSingle(fields, workingDir), rankEditor
 	}
 
 	// Check for git commands - handle with rich metadata
 	if cmdName == "git" {
-		return t.handleGitCommandSingle(fields, workingDir)
+		return t.handleGitCommandSingle(fields, workingDir), rankGit
 	}
 
 	// Check for build/test commands
 	if t.isBuildTestCommand(cmdName) {
-		return t.handleBuildTestCommandSingle(fields, workingDir)
+		return t.handleBuildTestCommandSingle(fields, workingDir), rankBuildTest
 	}
 
 	// Check for coding apps
@@ -220,7 +268,7 @@ func (t *Tracker) parseCommandToSingleActivity(command string, workingDir string
 			Project:    t.detectProject(workingDir),
 			Branch:     getGitBranch(workingDir),
 			Timestamp:  time.Now(),
-		}
+		}, rankCodingApp
 	}
 
 	// Check for remote connections
@@ -231,15 +279,12 @@ func (t *Tracker) parseCommandToSingleActivity(command string, workingDir string
 			Category:   "coding",
 			Project:    t.detectProject(workingDir),
 			Timestamp:  time.Now(),
-		}
+		}, rankRemote
 	}
 
 	// Check for directory changes
 	if cmdName == "cd" && len(fields) > 1 {
-		targetDir := fields[1]
-		if !filepath.IsAbs(targetDir) {
-			targetDir = filepath.Join(workingDir, targetDir)
-		}
+		targetDir := resolveDirectory(fields[1], workingDir)
 
 		return &Activity{
 			Entity:     targetDir,
@@ -248,7 +293,7 @@ func (t *Tracker) parseCommandToSingleActivity(command string, workingDir string
 			Project:    t.detectProject(targetDir),
 			Branch:     getGitBranch(targetDir),
 			Timestamp:  time.Now(),
-		}
+		}, rankDirectoryChange
 	}
 
 	// For any other terminal command, create a general coding activity
@@ -259,7 +304,7 @@ func (t *Tracker) parseCommandToSingleActivity(command string, workingDir string
 		Project:    t.detectProject(workingDir),
 		Branch:     getGitBranch(workingDir),
 		Timestamp:  time.Now(),
-	}
+	}, rankOtherCommand
 }
 
 func (t *Tracker) isEditor(cmdName string) bool {

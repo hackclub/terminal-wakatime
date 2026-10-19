@@ -212,21 +212,52 @@ else
         fi
     }
 
+    # $BASH_COMMAND is only the first simple command of the line ("cd x" for
+    # "cd x && vim y"), and the DEBUG trap never fires for a line that only
+    # runs a subshell ("(cd x; make)"). Once the line has finished, take the
+    # whole line from history instead. Lines that were not added to history
+    # (ignorespace, ignoredups, history off) leave the history number
+    # unchanged, and keep what the DEBUG trap recorded.
+    __terminal_wakatime_full_line() {
+        local __terminal_wakatime_status=$?
+        if [[ -n "${__terminal_wakatime_submitted:-}" || -z "${__terminal_wakatime_history_ready:-}" ]]; then
+            local entry number
+            entry=$(HISTTIMEFORMAT= builtin history 1)
+            entry="${entry#"${entry%%%%[![:space:]]*}"}"
+            number="${entry%%%%[!0-9]*}"
+            if [[ -n "${__terminal_wakatime_submitted:-}" && -n "$number" && "$number" != "${__terminal_wakatime_history_number:-}" ]]; then
+                entry="${entry#"$number"}"
+                entry="${entry#\*}"
+                entry="${entry#"${entry%%%%[![:space:]]*}"}"
+                if [[ -n "${__TERMINAL_WAKATIME_COMMAND:-}" ]]; then
+                    __TERMINAL_WAKATIME_COMMAND="$entry"
+                else
+                    __terminal_wakatime_preexec "$entry"
+                fi
+            fi
+            __terminal_wakatime_history_number="$number"
+            __terminal_wakatime_history_ready=1
+        fi
+        __terminal_wakatime_submitted=
+        return $__terminal_wakatime_status
+    }
+
     if [[ "${PROMPT_COMMAND:-}" != *"__terminal_wakatime_postexec"* ]]; then
-        PROMPT_COMMAND="__terminal_wakatime_postexec${PROMPT_COMMAND:+; $PROMPT_COMMAND}"
+        PROMPT_COMMAND="__terminal_wakatime_full_line; __terminal_wakatime_postexec${PROMPT_COMMAND:+; $PROMPT_COMMAND}"
     fi
 
     if (( BASH_VERSINFO[0] > 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] >= 4) )); then
         # PS0 is expanded once per submitted command line, and never for
         # PROMPT_COMMAND, so it marks the start of a user command exactly
         if [[ "${PS0:-}" != *"__terminal_wakatime_pending"* ]]; then
-            PS0="${PS0:-}"'${PS0:0:$((__terminal_wakatime_pending=1,0))}'
+            PS0="${PS0:-}"'${PS0:0:$((__terminal_wakatime_pending=1,__terminal_wakatime_submitted=1,0))}'
         fi
     else
         # bash < 4.4 has no PS0, so mark the end of PROMPT_COMMAND instead
         __terminal_wakatime_ready() {
             local __terminal_wakatime_status=$?
             __terminal_wakatime_pending=1
+            __terminal_wakatime_submitted=1
             return $__terminal_wakatime_status
         }
         if [[ "$PROMPT_COMMAND" != *"__terminal_wakatime_ready"* ]]; then
